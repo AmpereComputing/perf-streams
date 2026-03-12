@@ -1,0 +1,23 @@
+[paths]
+# Install to source remapping
+instruction_stream =
+    src/instruction_stream
+    **/install/lib/python/perf_streams
+
+event_stream =
+    src/event_stream
+    **/install/lib/python/perf_streams
+
+protobuf_utils =
+    src/protobuf_utils
+    **/install/lib/python/perf_streams
+
+[run]
+relative_files = true
+omit = 
+    */.local/*
+    /usr/*
+    /nix/store/*
+    **/*_pb2.py
+    **/test/*
+    **/test_*.py

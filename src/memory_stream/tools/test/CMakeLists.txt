@@ -1,0 +1,4 @@
+add_cpp_test(test_memory_stream_viewer SOURCES test_viewer.cc)
+target_link_libraries(test_memory_stream_viewer testing)
+target_compile_definitions(test_memory_stream_viewer PRIVATE MEMORY_STREAM_VIEWER_BIN="$<TARGET_FILE:ms_viewer>")
+add_dependencies(test_memory_stream_viewer ms_viewer)

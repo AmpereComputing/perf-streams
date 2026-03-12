@@ -1,0 +1,6 @@
+add_subdirectory(event_stream)
+add_subdirectory(instruction_stream)
+add_subdirectory(memory_stream)
+add_subdirectory(branch_stream)
+add_subdirectory(protobuf_utils)
+add_subdirectory(testing)

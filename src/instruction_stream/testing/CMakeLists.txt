@@ -1,0 +1,2 @@
+add_executable(generate_is_test generate_is_test.cc)
+target_link_libraries(generate_is_test instruction_stream fmt testing)

@@ -1,0 +1,11 @@
+// Copyright 2026 Ampere Computing LLC
+// SPDX-License-Identifier: BSD-3-Clause
+
+syntax = "proto3";
+
+package example;
+
+message Hello {
+    int32 id = 1;
+    string message =23;
+}

@@ -1,0 +1,35 @@
+// Copyright (c) 2026, Ampere Computing LLC
+// SPDX-License-Identifier: BSD-3-Clause
+
+syntax = "proto3";
+
+import "instruction_stream/instruction_stream.proto"; // Re-use SysReg and Context types
+
+package perf_streams.branch_stream;
+
+// The Branch message will be repeated until the end of the stream
+message Branch {
+    // Common branch types
+    enum Type {
+        NONE = 0;
+        CONDITIONAL_DIRECT = 1;
+        UNCONDITIONAL_DIRECT = 2;
+        UNCONDITIONAL_INDIRECT = 3;
+        CALL_DIRECT = 4;
+        CALL_INDIRECT = 5;
+        RETURN = 6;
+    }
+
+    uint64 program_counter = 1;  // Program counter of the branch instruction
+    bool taken = 2;              // True if the branch is taken
+    Type type = 3;               // The type of branch
+    uint64 target = 4;           // Target address (PC) of the branch instruction (if taken)
+}
+
+message Event {
+    oneof event {
+        instruction_stream.SysReg sysreg = 3;
+        instruction_stream.Context context = 4;
+        Branch branch = 5;
+    }
+}

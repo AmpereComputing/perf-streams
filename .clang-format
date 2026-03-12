@@ -1,0 +1,56 @@
+---
+BasedOnStyle: Google
+IndentWidth:     4
+---
+Language:        Cpp
+AccessModifierOffset: -4
+AllowShortBlocksOnASingleLine: Empty
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BinPackArguments: false
+BinPackParameters: false
+BraceWrapping:   
+  AfterCaseLabel:  false
+  AfterClass:      true
+  AfterControlStatement: MultiLine
+  AfterEnum:       false
+  AfterExternBlock: false
+  AfterFunction:   true
+  AfterNamespace:  false
+  AfterObjCDeclaration: false
+  AfterStruct:     true
+  AfterUnion:      true
+  BeforeCatch:     false
+  BeforeElse:      false
+  BeforeLambdaBody: false
+  BeforeWhile:     false
+  IndentBraces:    false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: true
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeBraces: Custom
+ColumnLimit:     120
+IncludeBlocks:   Regroup
+IncludeCategories: 
+  - Regex:           '^((<|")(gtest|gmock)/)'
+    Priority:        3
+  - Regex:           '^<.*'
+    Priority:        2
+  - Regex:           '.*'
+    Priority:        1
+IncludeIsMainRegex: '([-_](test|unittest))?$'
+IndentCaseLabels: false
+KeepEmptyLinesAtTheStartOfBlocks: false
+KeepEmptyLinesAtEOF: true
+PointerAlignment: Left
+SortIncludes:    true
+SortUsingDeclarations: true
+SpaceAfterTemplateKeyword: false
+SpacesBeforeTrailingComments: 1
+Standard:        c++20
+...
+

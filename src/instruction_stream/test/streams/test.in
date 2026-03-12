@@ -1,0 +1,14 @@
+Instruction stream is version 1 with the following feature support:
+  Memory translation collateral      : false
+  Divide/SQRT source registers       : false
+  Cache maintenance source registers : false
+  SW prefetch source registers       : false
+  All destination registers          : false
+  Memory values                      : false
+  SVE predicated memops              : false
+  SVE predicate registers            : false
+  Memop size                         : false
+  NZCV flags on instructions         : false
+
+Instruction: pc: 0x0 op: 0xffffffff
+Instruction: pc: 0x0 op: 0xeeeeeeee virtual address[0]: 0xaaaaaaaaaaaaaaaa physical address[0]: 0x0 bytes: 0x0

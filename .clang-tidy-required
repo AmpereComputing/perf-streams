@@ -1,0 +1,6 @@
+---
+FormatStyle: file
+Checks: "-*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-macro-parentheses"

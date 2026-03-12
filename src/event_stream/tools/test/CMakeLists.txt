@@ -1,0 +1,4 @@
+add_cpp_test(test_event_stream_viewer SOURCES test_viewer.cc)
+target_link_libraries(test_event_stream_viewer testing)
+target_compile_definitions(test_event_stream_viewer PRIVATE EVENT_STREAM_VIEWER_BIN="$<TARGET_FILE:es_viewer>")
+add_dependencies(test_event_stream_viewer es_viewer)

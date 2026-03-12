@@ -1,0 +1,15 @@
+add_cpp_test(test_instruction_stream_viewer SOURCES test_viewer.cc)
+target_link_libraries(test_instruction_stream_viewer testing)
+target_compile_definitions(test_instruction_stream_viewer PRIVATE INSTRUCTION_STREAM_VIEWER_BIN="$<TARGET_FILE:is_viewer>")
+add_dependencies(test_instruction_stream_viewer is_viewer)
+
+add_cpp_test(test_instruction_stream_info SOURCES test_info.cc)
+target_link_libraries(test_instruction_stream_info testing)
+target_compile_definitions(test_instruction_stream_info PRIVATE INSTRUCTION_STREAM_INFO_BIN="$<TARGET_FILE:is_info>")
+add_dependencies(test_instruction_stream_info is_info)
+
+add_cpp_test(test_instruction_stream_chop SOURCES test_chop.cc)
+target_link_libraries(test_instruction_stream_chop testing)
+target_compile_definitions(test_instruction_stream_chop PRIVATE INSTRUCTION_STREAM_INFO_BIN="$<TARGET_FILE:is_info>")
+target_compile_definitions(test_instruction_stream_chop PRIVATE INSTRUCTION_STREAM_CHOP_BIN="$<TARGET_FILE:is_chop>")
+add_dependencies(test_instruction_stream_chop is_chop is_info)

@@ -1,0 +1,9 @@
+add_cpp_test(test_branch_stream_viewer SOURCES test_viewer.cc)
+target_link_libraries(test_branch_stream_viewer testing)
+target_compile_definitions(test_branch_stream_viewer PRIVATE BRANCH_STREAM_VIEWER_BIN="$<TARGET_FILE:bs_viewer>")
+add_dependencies(test_branch_stream_viewer bs_viewer)
+
+add_cpp_test(test_branch_stream_chop SOURCES test_chop.cc)
+target_link_libraries(test_branch_stream_chop testing)
+target_compile_definitions(test_branch_stream_chop PRIVATE BRANCH_STREAM_CHOP_BIN="$<TARGET_FILE:bs_chop>")
+add_dependencies(test_branch_stream_chop bs_chop)
