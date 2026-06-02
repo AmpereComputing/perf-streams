@@ -7,6 +7,7 @@
 #include <boost/program_options.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <fmt/base.h>
 #include <fmt/format.h>
 #include <fstream>
@@ -32,7 +33,7 @@ using perf_streams::protobuf_utils::CompressionType;
 
 struct InstructionRecord
 {
-    std::uint64_t fetch_time{0};
+    std::uint64_t start_time{0};
     std::uint64_t pc{0};
     std::uint64_t micro_pc{0};
     std::uint64_t seq_num{0};
@@ -107,30 +108,30 @@ std::vector<std::string_view> split_all(std::string_view line)
     }
 }
 
-InstructionRecord parse_fetch_line(std::string_view line, std::size_t line_number)
+InstructionRecord parse_start_line(std::string_view line, std::size_t line_number, const std::string& start_stage)
 {
     std::string_view fields[6];
     std::size_t start = 0;
     for (auto& field : fields) {
         std::size_t pos = line.find(':', start);
         if (pos == std::string_view::npos)
-            parse_error(line_number, "malformed fetch line");
+            parse_error(line_number, fmt::format("malformed {} line", start_stage));
         field = line.substr(start, pos - start);
         start = pos + 1;
     }
 
     if (fields[0] != "O3PipeView")
-        parse_error(line_number, "malformed fetch line");
-    if (fields[1] != "fetch")
-        parse_error(line_number, "expected fetch line");
+        parse_error(line_number, fmt::format("malformed {} line", start_stage));
+    if (fields[1] != start_stage)
+        parse_error(line_number, fmt::format("expected {} line", start_stage));
 
     InstructionRecord record;
-    record.fetch_time = parse_u64(fields[2], line_number, "fetch time");
+    record.start_time = parse_u64(fields[2], line_number, fmt::format("{} time", start_stage));
     record.pc = parse_u64(fields[3], line_number, "pc");
     record.micro_pc = parse_u64(fields[4], line_number, "micro_pc");
     record.seq_num = parse_u64(fields[5], line_number, "seq_num");
     record.disasm = std::string(line.substr(start));
-    record.record_stage("fetch", record.fetch_time);
+    record.record_stage(start_stage, record.start_time);
     return record;
 }
 
@@ -252,19 +253,21 @@ void convert(std::istream& input,
         if (!line.starts_with("O3PipeView:"))
             continue;
 
-        if (line.starts_with("O3PipeView:fetch:")) {
+        if (line.starts_with(fmt::format("O3PipeView:{}:", tx_start_stage))) {
             if (current_instruction)
-                parse_error(line_number, "encountered fetch before retire for the current instruction");
-            current_instruction = parse_fetch_line(line, line_number);
-            if (!definitions.stage_events.contains("fetch")) {
-                definitions.stage_events.emplace("fetch",
-                                                 output.define_event("fetch", "gem5 O3PipeView stage 'fetch'"));
+                parse_error(
+                    line_number, fmt::format("encountered {} before retire for the current instruction", tx_start_stage));
+            current_instruction = parse_start_line(line, line_number, tx_start_stage);
+            if (!definitions.stage_events.contains(tx_start_stage)) {
+                definitions.stage_events.emplace(
+                    tx_start_stage,
+                    output.define_event(tx_start_stage, fmt::format("gem5 O3PipeView stage '{}'", tx_start_stage)));
             }
             continue;
         }
 
         if (!current_instruction)
-            parse_error(line_number, "encountered stage before first fetch");
+            parse_error(line_number, fmt::format("encountered stage before first {}", tx_start_stage));
 
         parse_stage_line(line, line_number, *current_instruction, definitions, output);
         if (current_instruction->stage_times.contains("retire")) {
@@ -316,13 +319,15 @@ int main(int argc, char** argv)
         bool force = false;
 
         po::options_description desc("Allowed options");
-        desc.add_options()("help", "produce help message")(
+        desc.add_options()("help,h", "produce help message")(
             "output,o", po::value<std::string>(&output_path)->default_value("-"), "event stream output path")(
             "compress",
             po::value<std::string>(&compression_arg)->default_value("auto"),
             "output compression: auto, none, or xz")(
             "force,f", po::bool_switch(&force), "overwrite an existing output file")(
-            "tx-start", po::value<std::string>(&tx_start_stage)->default_value("fetch"), "transaction start stage")(
+            "tx-start",
+            po::value<std::string>(&tx_start_stage)->default_value("fetch"),
+            "transaction start stage and O3PipeView opener")(
             "tx-end", po::value<std::string>(&tx_end_stage)->default_value("store"), "transaction end stage")(
             "input", po::value<std::string>(&input_path)->default_value("-"), "O3PipeView trace input path");
 
@@ -334,8 +339,10 @@ int main(int argc, char** argv)
         po::notify(vm);
 
         if (vm.count("help")) {
-            std::cout << "Usage: " << argv[0] << " [options] [input]\n" << desc << std::endl;
-            return 0;
+            std::cout << "Usage: " << argv[0] << " [options] [input]\n\n";
+            std::cout << "Convert gem5 o3pipeview debug trace to event-stream\n\n";
+            std::cout << desc << std::endl;
+            return EXIT_SUCCESS;
         }
 
         auto compression = resolve_compression(output_path, compression_arg);
@@ -351,9 +358,9 @@ int main(int argc, char** argv)
             convert(input, output, input_path, tx_start_stage, tx_end_stage);
         }
 
-        return 0;
+        return EXIT_SUCCESS;
     } catch (const std::exception& ex) {
         fmt::print(stderr, "ERROR: {}\n", ex.what());
-        return 1;
+        return EXIT_FAILURE;
     }
 }

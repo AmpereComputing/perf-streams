@@ -1,0 +1,10 @@
+O3PipeView:rename:120:0x1000:0:1:add x0, x0, x1
+O3PipeView:dispatch:130
+O3PipeView:issue:140
+O3PipeView:complete:150
+O3PipeView:retire:160
+O3PipeView:rename:220:0x1004:1:2:ldr x2, [x3]
+O3PipeView:dispatch:230
+O3PipeView:issue:240
+O3PipeView:complete:250
+O3PipeView:retire:260
