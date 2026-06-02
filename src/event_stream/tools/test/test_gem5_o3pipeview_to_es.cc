@@ -14,7 +14,7 @@ using ::testing::Not;
 
 struct Gem5O3PipeViewToESTest : perf_streams::testing::CommandTest
 {
-    Gem5O3PipeViewToESTest() : CommandTest(O3PIPEVIEW_TO_ES_BIN, "traces") {}
+    Gem5O3PipeViewToESTest() : CommandTest(GEM5_O3PIPEVIEW_TO_ES_BIN, "traces") {}
 
     std::string output_file(const std::string& name) const { return stream_output(name); }
 
