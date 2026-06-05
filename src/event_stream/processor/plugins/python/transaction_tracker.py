@@ -3,7 +3,17 @@
 
 """Transaction tracking helpers."""
 
+from collections.abc import Callable
+
 import evp
+from perf_streams.event_stream import Event
+
+type TxData = bool | int | float | str
+
+
+def _noop_tx_callback(txid: int) -> None:
+    """Default transaction callback."""
+    del txid
 
 
 class TransactionTracker:
@@ -24,20 +34,25 @@ class TransactionTracker:
     transactions have already ended.
     """
 
-    def __init__(self, on_start_tx=lambda txid: None, on_end_tx=lambda txid: None):
-        self.parents = {}  # maps child txid to immediate parent txid
-        self.children = {}  # maps parent txid to immediate children txid's
-        self.tx_data = {}  # maps txid to recorded data for that transaction
+    def __init__(
+        self,
+        on_start_tx: Callable[[int], None] | None = None,
+        on_end_tx: Callable[[int], None] | None = None,
+    ) -> None:
+        """Initialize transaction tracking and hook into start/end events."""
+        self.parents: dict[int, int] = {}  # maps child txid to immediate parent txid
+        self.children: dict[int, set[int]] = {}  # maps parent txid to immediate children txid's
+        self.tx_data: dict[int, dict[str, TxData]] = {}  # maps txid to recorded data for that transaction
 
         # callback functions for start/end transactions
-        self.start_tx_callback = on_start_tx
-        self.end_tx_callback = on_end_tx
+        self.start_tx_callback = on_start_tx or _noop_tx_callback
+        self.end_tx_callback = on_end_tx or _noop_tx_callback
 
-        evp.on("start_transaction", lambda e: self._start_tx(e))
-        evp.on("end_transaction", lambda e: self._end_tx(e))
-        evp.end_simulation(lambda: self._end_transactions_at_end())
+        evp.on("start_transaction", self._start_tx)
+        evp.on("end_transaction", self._end_tx)
+        evp.end_simulation(self._end_transactions_at_end)
 
-    def _start_tx(self, event):
+    def _start_tx(self, event: Event) -> None:
         txid = event.data["txid"]
         self.tx_data[txid] = {}
         if "parent" in event.data:
@@ -49,7 +64,7 @@ class TransactionTracker:
 
         self.start_tx_callback(txid)
 
-    def add_tx_data(self, txid, key, value, ancestor_generations=0):
+    def add_tx_data(self, txid: int, key: str, value: TxData, ancestor_generations: int = 0) -> None:
         """Add the data item to the tracked transaction, and optionally up to
         `ancestor_generations` levels of parents, if they exist.
         """
@@ -63,7 +78,8 @@ class TransactionTracker:
             else:
                 return
 
-    def get_tx_data(self, txid, key, search_parents=False):
+    def get_tx_data(self, txid: int, key: str, search_parents: bool = False) -> TxData | None:
+        """Get data recorded for a transaction, optionally searching parents."""
         if txid not in self.tx_data:
             return None
 
@@ -74,7 +90,7 @@ class TransactionTracker:
             return self.get_tx_data(self.parents[txid], key, True)
         return None
 
-    def _remove_ghost_transactions(self, txid):
+    def _remove_ghost_transactions(self, txid: int) -> None:
         # Do not remove this transaction if it still has children which are
         # still tracked. Effectively, ensure that a transaction's data in
         # self.tx_data outlives all of its children. Then, whenever a
@@ -109,7 +125,7 @@ class TransactionTracker:
         # finally, remove this transaction's data since we are done with it
         del self.tx_data[txid]
 
-    def _end_tx(self, event):
+    def _end_tx(self, event: Event) -> None:
         txid = event.data["txid"]
         if txid not in self.tx_data:
             return
@@ -119,6 +135,6 @@ class TransactionTracker:
         self.add_tx_data(txid, "__ghost__", True)
         self._remove_ghost_transactions(txid)
 
-    def _end_transactions_at_end(self):
-        for txid in self.tx_data.keys():
+    def _end_transactions_at_end(self) -> None:
+        for txid in self.tx_data:
             self.end_tx_callback(txid)

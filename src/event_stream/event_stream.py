@@ -7,17 +7,23 @@ import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 import perf_streams.event_stream_pb2 as es_proto
 from perf_streams.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
 
 protobuf_es_magic = 0x53454250  # 0x50(P) 0x42(B) 0x45(E) 0x53(S)
 protobuf_es_version = 4  # synchronize with event_stream_proto.h
+MIN_VERSION_WITH_PRE_EVENT_DEFINITIONS = 2
+
+type JsonScalar = None | bool | int | float | str
+type JsonValue = JsonScalar | list[JsonValue] | tuple[JsonValue, ...] | dict[str, JsonValue]
+type EventConstructor = Callable[[es_proto.Event, "EventStreamReader"], "Event"]
 
 
 @dataclass(frozen=True)
 class EventType:
+    """Metadata describing an event definition."""
+
     id: int
     name: str
     description: str = ""
@@ -25,6 +31,8 @@ class EventType:
 
 @dataclass(frozen=True)
 class ValueType:
+    """Metadata describing an event value definition."""
+
     id: int
     name: str
     description: str = ""
@@ -50,7 +58,8 @@ class Event:
         time: int,
         name: str,
         data: dict[str, EventScalarValue] | None = None,
-    ):
+    ) -> None:
+        """Create an event wrapper from explicit event fields."""
         self.definition_id = definition_id
         self.id = event_id
         self.time = time
@@ -59,7 +68,9 @@ class Event:
 
     @classmethod
     def from_event(cls, event: es_proto.Event, reader: "EventStreamReader") -> "Event":
-        def as_data_value(value):
+        """Build an `Event` from a protobuf event message."""
+
+        def as_data_value(value: es_proto.Value) -> EventScalarValue:
             data_value = getattr(value, value.WhichOneof("values"))
             return reader.convert_enumeration_value(value.definition_id, data_value)
 
@@ -124,7 +135,8 @@ class Transaction:
 class Enumeration(dict[int, str]):
     """Python-only definition of Enumeration (for writer-facing APIs)."""
 
-    def __init__(self, enumeration_id: int, values: dict[int, str]):
+    def __init__(self, enumeration_id: int, values: dict[int, str]) -> None:
+        """Store enumeration values together with the assigned enumeration id."""
         super().__init__(values)
         self.enumeration_id = enumeration_id
 
@@ -286,16 +298,15 @@ class EventStreamWriter(ProtobufStreamWriter):
         """
         self._assert_preamble("define_enumeration")
 
-        raw_values: dict[Any, Any]
         if isinstance(values, type) and issubclass(values, Enum):
-            raw_values = {member.value: member.name for member in values}
+            candidate_values = {member.value: member.name for member in values}
         elif isinstance(values, dict):
-            raw_values = values
+            candidate_values = values
         else:
             raise TypeError(f"values must be dict[int, str] or Enum subclass, but was {type(values).__name__}")
 
         validated_values: EnumerationValues = {}
-        for key, value in raw_values.items():
+        for key, value in candidate_values.items():
             if not isinstance(key, int):
                 raise TypeError(f"Enumeration key must be int, but was {type(key).__name__}")
             if not isinstance(value, str):
@@ -377,7 +388,7 @@ class EventStreamWriter(ProtobufStreamWriter):
         self.definition_name_to_id[key] = definition_id
         return ValueType(id=definition_id, name=name, description=description, enumeration_id=enumeration_id)
 
-    def set_parameter(self, name: str, value: Any, description: str = "") -> None:
+    def set_parameter(self, name: str, value: JsonValue, description: str = "") -> None:
         """Set parameter.
 
         Args:
@@ -592,7 +603,7 @@ class EventStreamReader(ProtobufStreamReader):
         """Find parameter by parameter name."""
         return self.parameters.get(name)
 
-    def convert_enumeration_value(self, definition_id: int, value):
+    def convert_enumeration_value(self, definition_id: int, value: EventScalarValue) -> EventScalarValue:
         """Convert (possible) enumeration value to string."""
         if isinstance(value, int) and self.convert_enumerations:
             definition = self.find_definition_by_id(definition_id)
@@ -654,7 +665,9 @@ class EventStreamReader(ProtobufStreamReader):
         return status
 
     def read_events(
-        self, events: Iterable[str | Callable[[str], bool]], constructor=Event.from_event
+        self,
+        events: Iterable[str | Callable[[str], bool]],
+        constructor: EventConstructor = Event.from_event,
     ) -> Iterable[Event]:
         """Read all matching events.
 
@@ -665,7 +678,7 @@ class EventStreamReader(ProtobufStreamReader):
         Yields:
             Event: read event
         """
-        assert self.version >= 2
+        assert self.version >= MIN_VERSION_WITH_PRE_EVENT_DEFINITIONS
         event_names = {event for event in events if isinstance(event, str)}
         event_matchers = [event for event in events if not isinstance(event, str)]
 
