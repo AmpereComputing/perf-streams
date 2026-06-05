@@ -53,7 +53,7 @@ class TransactionTracker:
         """Add the data item to the tracked transaction, and optionally up to
         `ancestor_generations` levels of parents, if they exist.
         """
-        for _generation in range(0, ancestor_generations + 1):
+        for _generation in range(ancestor_generations + 1):
             if txid in self.tx_data:
                 self.tx_data[txid][key] = value
 
@@ -70,10 +70,9 @@ class TransactionTracker:
         tx_data = self.tx_data[txid]
         if key in tx_data:
             return tx_data[key]
-        elif search_parents and txid in self.parents:
+        if search_parents and txid in self.parents:
             return self.get_tx_data(self.parents[txid], key, True)
-        else:
-            return None
+        return None
 
     def _remove_ghost_transactions(self, txid):
         # Do not remove this transaction if it still has children which are

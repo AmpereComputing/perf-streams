@@ -87,7 +87,7 @@ class EventHistogramPerKey:
     def hash_key(self, data) -> str:
         if self._key_names is None:
             self._key_names = [name for name in data.keys() if any(k in name for k in self._key_types)]
-        return hash((data[m] for m in self._key_names))
+        return hash(data[m] for m in self._key_names)
 
     def _occurences(self, event) -> Occurences:
         if event.name not in self._events:
