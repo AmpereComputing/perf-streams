@@ -6,6 +6,7 @@
 from collections.abc import Callable
 
 import evp
+
 from perf_streams.event_stream import Event
 
 type TxData = bool | int | float | str
@@ -13,7 +14,6 @@ type TxData = bool | int | float | str
 
 def _noop_tx_callback(txid: int) -> None:
     """Default transaction callback."""
-    del txid
 
 
 class TransactionTracker:
