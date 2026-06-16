@@ -49,11 +49,9 @@ indent-width = 4
 target-version = "py312"
 
 [tool.ruff.lint]
-# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
-# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
-# McCabe complexity (`C901`) by default.
 select = [
   "A",
+  "ANN",
   "B",
   "C4",
   "D1",
@@ -112,12 +110,24 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.per-file-ignores]
 "**/test*/*" = [
+    "ANN",
     "B",
     "D",
     "F405",
     "PLR2004",
     "PLR0904"
 ]
+"src/event_stream/processor/test/configs/*.py" = [
+    "F821",
+    "PLW0602",
+    "PLW2901",
+    "T201",
+]
+
+[tool.ruff.lint.flake8-annotations]
+allow-star-arg-any = true
+suppress-none-returning = true
+suppress-dummy-args = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -128,4 +138,3 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
-

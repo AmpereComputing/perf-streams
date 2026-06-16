@@ -7,8 +7,10 @@ from io import DEFAULT_BUFFER_SIZE, IOBase
 
 try:
     import lzma
-except:
+except ImportError:
     from backports import lzma
+
+from google.protobuf.message import Message
 
 from perf_streams.protobuf_utils import SIZE_STRUCT, is32, read_header_from, write_delimited_to, write_header_to
 
@@ -16,7 +18,7 @@ from perf_streams.protobuf_utils import SIZE_STRUCT, is32, read_header_from, wri
 class ProtobufStreamReader:
     """Protobuf stream (delimited) reader."""
 
-    def __init__(self, filename: str, expected_magic: int, max_version: int):
+    def __init__(self, filename: str | IOBase, expected_magic: int, max_version: int) -> None:
         """Initialize protobuf stream reader at file, checking magic/version."""
         if isinstance(filename, IOBase):
             self.file = filename
@@ -43,7 +45,7 @@ class ProtobufStreamReader:
         self.read_index = 0
         self.write_index = 0
 
-    def _read_file(self, bytes_to_read: int):
+    def _read_file(self, bytes_to_read: int) -> bytes | bytearray | memoryview:
         """
         Handle reading from the file, but do the underlying read in
         buffer-sized chunks to increase the efficiency.
@@ -76,7 +78,7 @@ class ProtobufStreamReader:
         self.read_index += bytes_to_read
         return self.read_view[old_read_idx : self.read_index]
 
-    def read(self, item) -> bool:
+    def read(self, item: Message) -> bool:
         """Read item from stream."""
         # Get message size in bytes, encoded as bytes
         num_bytes = self._read_file(4)
@@ -89,13 +91,13 @@ class ProtobufStreamReader:
         item.ParseFromString(bytes(self._read_file(size)))
         return True
 
-    def close(self):
+    def close(self) -> None:
         """Close stream."""
         if hasattr(self, "file") and self.close_when_done:
             self.file.close()
             del self.file
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Close stream."""
         self.close()
 
@@ -103,7 +105,7 @@ class ProtobufStreamReader:
 class ProtobufStreamWriter:
     """Protobuf stream (delimited) writer."""
 
-    def __init__(self, filename: str, magic: int, version: int):
+    def __init__(self, filename: str, magic: int, version: int) -> None:
         """Initialize protobuf stream writer at file with magic/version."""
         if filename.endswith(".xz"):
             self.file = lzma.open(filename, "wb")
@@ -114,17 +116,17 @@ class ProtobufStreamWriter:
         write_header_to(magic, version, self.file)
         self.file.flush()
 
-    def write(self, item):
+    def write(self, item: Message) -> None:
         """Write item to stream."""
         write_delimited_to(item, self.file)
 
-    def close(self):
+    def close(self) -> None:
         """Close stream."""
         if hasattr(self, "file"):
             self.file.flush()
             self.file.close()
             del self.file
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Close stream."""
         self.close()

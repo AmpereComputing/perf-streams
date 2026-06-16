@@ -27,7 +27,7 @@ def print_event(event):
                 raise ValueError(f"{name} not in evp.enums")
 
     if expand_enumerations:
-        data = ", ".join(f"{k}({data_type(v)})={str(v)}" for k, v in event.data.items())
+        data = ", ".join(f"{k}({data_type(v)})={v!s}" for k, v in event.data.items())
     else:
         data = ", ".join(f"{k}({data_type(v)})={int(v)}" for k, v in event.data.items())
 

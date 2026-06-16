@@ -7,20 +7,26 @@ import enum
 import math
 from collections import Counter
 
+SPEC_PART_COUNT = 4
+
 
 class HistogramSequence(enum.StrEnum):
+    """Bucket distribution modes for histograms."""
+
     LINEAR = enum.auto()
     EXPONENTIAL = enum.auto()
 
 
 class Histogram:
+    """Bucketer for grouping integer counts into coarser histogram buckets."""
+
     def __init__(
         self,
         minimum: int | None = None,
         maximum: int | None = None,
         granularity: int | None = None,
         sequence: HistogramSequence | None = None,
-    ):
+    ) -> None:
         """Histogram bucketer and associated settings.
 
         Args:
@@ -39,7 +45,7 @@ class Histogram:
     def from_spec(cls, spec_string: str) -> "Histogram":
         """Create from spec similar to +count (i.e. min:max:granularity:sequence)."""
 
-        def convert_part(part):
+        def convert_part(part: str) -> int | HistogramSequence | str | None:
             try:
                 return int(part)
             except ValueError:
@@ -49,8 +55,8 @@ class Histogram:
                 return part or None
 
         parts = [convert_part(part) for part in spec_string.split(":")]
-        if len(parts) < 4:
-            parts += [None] * (4 - len(parts))
+        if len(parts) < SPEC_PART_COUNT:
+            parts += [None] * (SPEC_PART_COUNT - len(parts))
 
         return cls(*parts)
 
@@ -68,7 +74,8 @@ class Histogram:
 
         return value
 
-    def __call__(self, values: dict[int, int]) -> Counter:
+    def __call__(self, values: dict[int, int]) -> Counter[int]:
+        """Bucket the provided histogram values."""
         adjusted_values = Counter()
         for bucket, count in values.items():
             adjusted = self._adjust(bucket)

@@ -13,18 +13,18 @@ protobuf_is_version = 6  # synchronize with instruction_stream.cc
 class InstructionStreamWriter(ProtobufStreamWriter):
     """Protobuf-based InstructionStream writer."""
 
-    def __init__(self, filename: str, features):
+    def __init__(self, filename: str, features: is_proto.Features) -> None:
         """Initialize an instruction stream for writing, including writing the passed-in features."""
         super().__init__(filename, protobuf_is_magic, protobuf_is_version)
         self.write(features)
 
-    def write_instruction(self, instruction: is_proto.Instruction):
+    def write_instruction(self, instruction: is_proto.Instruction) -> None:
         """Write instruction to stream."""
         event = is_proto.Event()
         event.instruction.CopyFrom(instruction)
         super().write(event)
 
-    def write(self, msg: is_proto.Event | is_proto.Instruction | is_proto.Features):
+    def write(self, msg: is_proto.Event | is_proto.Instruction | is_proto.Features) -> None:
         """Write message to stream."""
         if isinstance(msg, is_proto.Event):
             super().write(msg)
@@ -45,7 +45,7 @@ class InstructionStreamReader(ProtobufStreamReader):
         self.features = is_proto.Features()
         self.read(self.features)
 
-    def read_instruction(self, instruction: is_proto.Instruction):
+    def read_instruction(self, instruction: is_proto.Instruction) -> bool:
         """Read instruction from stream."""
         event = is_proto.Event()
         status = super().read(event)
@@ -55,7 +55,7 @@ class InstructionStreamReader(ProtobufStreamReader):
             instruction.CopyFrom(event.instruction)
         return status
 
-    def read(self, msg: is_proto.Event | is_proto.Instruction | is_proto.Features):
+    def read(self, msg: is_proto.Event | is_proto.Instruction | is_proto.Features) -> bool:
         """Read message from stream."""
         if isinstance(msg, is_proto.Event):
             return super().read(msg)

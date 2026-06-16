@@ -5,6 +5,7 @@ import os
 import unittest
 
 import example_pb2
+
 from perf_streams.protobuf_stream import *
 from perf_streams.protobuf_utils import *
 
