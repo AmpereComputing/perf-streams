@@ -32,7 +32,7 @@ all = [
 ]
 
 [build-system]
-requires = ["scikit-build-core>=0.9"]
+requires = ["pybind11>=2.12", "scikit-build-core>=0.9"]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]

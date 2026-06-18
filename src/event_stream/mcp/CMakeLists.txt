@@ -7,7 +7,7 @@ target_link_libraries(event_stream_mcp_core PUBLIC event_stream event_stream_pro
 set_property(TARGET event_stream_mcp_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 add_library(_event_stream_mcp MODULE python_module.cc)
-target_link_libraries(_event_stream_mcp PRIVATE event_stream_mcp_core Python3::Python fmt)
+target_link_libraries(_event_stream_mcp PRIVATE event_stream_mcp_core pybind11::module fmt)
 set_target_properties(_event_stream_mcp PROPERTIES PREFIX "" SUFFIX ".so")
 
 install(TARGETS _event_stream_mcp LIBRARY DESTINATION ${INSTALL_PYTHON_PATH})

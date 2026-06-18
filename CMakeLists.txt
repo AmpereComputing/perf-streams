@@ -95,6 +95,7 @@ find_package(fmt REQUIRED)
 add_library(fmt ALIAS fmt::fmt-header-only)
 
 find_package(Python3 COMPONENTS Interpreter Development)
+find_package(pybind11 CONFIG REQUIRED)
 
 include(cmake/tests.cmake)
 include(cmake/protobuf.cmake)
