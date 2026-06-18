@@ -4,52 +4,18 @@
 #include "compressed_fstream.h"
 
 #include <boost/iostreams/device/file.hpp>
-#include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/filter/lzma.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/stream.hpp>
-#include <boost/process/v1/search_path.hpp>
-#include <cerrno>
-#include <cstdio>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <stdexcept>
-#include <system_error>
 
 namespace perf_streams::protobuf_utils {
-
-struct open_process
-{
-    FILE* fp = nullptr;
-    explicit open_process(FILE* fp) : fp(fp) {}
-    ~open_process()
-    {
-        if (fp && pclose(fp) == -1)
-            perror("Error closing");
-    }
-};
-
-template<typename T>
-class process_piped : public T
-{
-    // requires shared_ptr because boost::iostreams requires copy-constructor
-    std::shared_ptr<open_process> fp;
-
-public:
-    explicit process_piped(FILE* fp)
-        : T(fileno(fp), boost::iostreams::never_close_handle), fp(std::make_shared<open_process>(fp))
-    {
-    }
-};
-
-using process_sink = process_piped<boost::iostreams::file_descriptor_sink>;
-using process_source = process_piped<boost::iostreams::file_descriptor_source>;
 
 CompressionType compression_from_filename(const char* filename)
 {
@@ -82,12 +48,6 @@ std::unique_ptr<std::ostream> open_compressed_ostream(const char* filename, std:
     if ((mode & std::ios_base::app) || !(mode & std::ios_base::trunc))
         throw std::runtime_error("Compressed output streams require truncation; must not append.");
 
-    if (compression == CompressionType::XZ) {
-        // FIXME: if boost support is available, can use lzma_compressor
-        auto* fp = open_xz_output_file(filename);
-        return std::make_unique<boost::iostreams::stream<process_sink>>(fp);
-    }
-
     auto out = std::make_unique<boost::iostreams::filtering_ostream>();
 
     if (compression == CompressionType::GZIP)
@@ -96,6 +56,8 @@ std::unique_ptr<std::ostream> open_compressed_ostream(const char* filename, std:
         out->push(boost::iostreams::zlib_compressor());
     else if (compression == CompressionType::BZ2)
         out->push(boost::iostreams::bzip2_compressor());
+    else if (compression == CompressionType::XZ)
+        out->push(boost::iostreams::lzma_compressor());
     out->push(boost::iostreams::file_sink(filename, mode | std::ios_base::binary));
 
     return out;
@@ -108,12 +70,6 @@ std::unique_ptr<std::istream> open_compressed_istream(const char* filename, std:
     if (compression == CompressionType::NONE)
         return make_unique<std::ifstream>(filename, mode);
 
-    if (compression == CompressionType::XZ) {
-        // FIXME: if boost support is available, can use lzma_decompressor
-        auto* fp = open_xz_input_file(filename);
-        return std::make_unique<boost::iostreams::stream<process_source>>(fp);
-    }
-
     auto in = std::make_unique<boost::iostreams::filtering_istream>();
     if (compression == CompressionType::GZIP)
         in->push(boost::iostreams::gzip_decompressor());
@@ -121,40 +77,12 @@ std::unique_ptr<std::istream> open_compressed_istream(const char* filename, std:
         in->push(boost::iostreams::zlib_decompressor());
     else if (compression == CompressionType::BZ2)
         in->push(boost::iostreams::bzip2_decompressor());
+    else if (compression == CompressionType::XZ)
+        in->push(boost::iostreams::lzma_decompressor());
 
     in->push(boost::iostreams::file_source(filename, mode | std::ios_base::binary));
 
     return in;
-}
-
-FILE* open_xz_output_file(const char* filename)
-{
-    auto xzpath = boost::process::v1::search_path("xz");
-    if (xzpath.empty())
-        throw std::system_error(errno, std::system_category(), "Cannot find `xz` on $PATH");
-
-    std::stringstream cmd;
-    cmd << xzpath.string() << " -T 0 -z - > " << filename;
-    auto* fp = popen(cmd.str().c_str(), "w");
-    if (fp == nullptr)
-        throw std::system_error(errno, std::system_category(), "popen() failed");
-
-    return fp;
-}
-
-FILE* open_xz_input_file(const char* filename)
-{
-    auto xzcatpath = boost::process::v1::search_path("xzcat");
-    if (xzcatpath.empty())
-        throw std::system_error(errno, std::system_category(), "Cannot find `xzcat` on $PATH");
-
-    std::stringstream cmd;
-    cmd << xzcatpath.string() << " " << filename;
-    auto* fp = popen(cmd.str().c_str(), "r");
-    if (fp == nullptr)
-        throw std::system_error(errno, std::system_category(), "popen() failed");
-
-    return fp;
 }
 
 } // namespace perf_streams::protobuf_utils
