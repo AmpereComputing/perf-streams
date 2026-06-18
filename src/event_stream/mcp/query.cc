@@ -43,6 +43,7 @@ namespace processor = perf_streams::event_stream::processor;
 namespace {
 
 constexpr uint32_t stream_version = protobuf_es_version;
+constexpr size_t map_entry_overhead = sizeof(void*) * 4;
 
 struct FileIdentity
 {
@@ -130,6 +131,64 @@ struct LatencyTracker
     int last_event_idx{-1};
     bool saw_start_event{false};
 };
+
+size_t string_memory_bytes(const std::string& value)
+{
+    return value.capacity() + 1;
+}
+
+size_t scalar_memory_bytes(const Scalar& value)
+{
+    if (value.kind == Scalar::Kind::STRING || value.kind == Scalar::Kind::JSON)
+        return string_memory_bytes(std::get<std::string>(value.value));
+    return 0;
+}
+
+size_t definition_memory_bytes(const DefinitionInfo& definition)
+{
+    return sizeof(DefinitionInfo) + string_memory_bytes(definition.kind) + string_memory_bytes(definition.name)
+           + string_memory_bytes(definition.description);
+}
+
+size_t enumeration_memory_bytes(const EnumerationInfo& enumeration)
+{
+    size_t bytes = sizeof(EnumerationInfo);
+    for (const auto& [value, name] : enumeration.values)
+        bytes += map_entry_overhead + sizeof(value) + string_memory_bytes(name);
+    return bytes;
+}
+
+size_t parameter_memory_bytes(const ParameterInfo& parameter)
+{
+    return sizeof(ParameterInfo) + string_memory_bytes(parameter.name) + string_memory_bytes(parameter.description)
+           + scalar_memory_bytes(parameter.value);
+}
+
+size_t event_value_memory_bytes(const EventValue& value)
+{
+    auto bytes = sizeof(EventValue) + string_memory_bytes(value.name) + scalar_memory_bytes(value.value);
+    if (value.expanded)
+        bytes += string_memory_bytes(*value.expanded);
+    return bytes;
+}
+
+size_t event_row_memory_bytes(const EventRow& event)
+{
+    size_t bytes = sizeof(EventRow) + event.values.capacity() * sizeof(EventValue);
+    for (const auto& value : event.values)
+        bytes += event_value_memory_bytes(value);
+    return bytes;
+}
+
+void add_estimated_memory(StreamCache& stream, size_t bytes, size_t memory_budget_bytes)
+{
+    if (bytes > memory_budget_bytes || stream.estimated_memory_bytes > memory_budget_bytes - bytes) {
+        throw std::runtime_error{fmt::format("event stream exceeds MCP memory budget of {} bytes while loading {}",
+                                             memory_budget_bytes,
+                                             stream.identity.canonical_path.string())};
+    }
+    stream.estimated_memory_bytes += bytes;
+}
 
 FileIdentity identify(const fs::path& path)
 {
@@ -231,10 +290,11 @@ std::optional<std::string> expanded_value(const StreamCache& stream, uint32_t de
     return enum_value->second;
 }
 
-StreamCache load_stream(const FileIdentity& identity)
+StreamCache load_stream(const FileIdentity& identity, size_t memory_budget_bytes)
 {
     StreamCache stream;
     stream.identity = identity;
+    add_estimated_memory(stream, sizeof(StreamCache), memory_budget_bytes);
 
     EventStreamReader reader{identity.canonical_path};
     proto::Record record;
@@ -242,20 +302,29 @@ StreamCache load_stream(const FileIdentity& identity)
         if (record.has_definition()) {
             auto info = definition_info(record.definition());
             auto id = info.id;
-            if (info.kind == "event")
+            add_estimated_memory(stream, definition_memory_bytes(info), memory_budget_bytes);
+            if (info.kind == "event") {
+                add_estimated_memory(
+                    stream, map_entry_overhead + string_memory_bytes(info.name) + sizeof(id), memory_budget_bytes);
                 stream.event_ids_by_name[info.name] = id;
-            else if (info.kind == "value")
+            } else if (info.kind == "value") {
+                add_estimated_memory(
+                    stream, map_entry_overhead + string_memory_bytes(info.name) + sizeof(id), memory_budget_bytes);
                 stream.value_ids_by_name[info.name] = id;
+            }
             stream.definitions[id] = std::move(info);
         } else if (record.has_enumeration()) {
             EnumerationInfo info;
             info.id = record.enumeration().id();
             for (const auto& [value, name] : record.enumeration().values())
                 info.values[value] = name;
+            add_estimated_memory(stream, enumeration_memory_bytes(info), memory_budget_bytes);
             stream.enumerations[info.id] = std::move(info);
         } else if (record.has_parameter()) {
             const auto& parameter = record.parameter();
-            stream.parameters.push_back({parameter.name(), parameter.description(), scalar_from_parameter(parameter)});
+            ParameterInfo info{parameter.name(), parameter.description(), scalar_from_parameter(parameter)};
+            add_estimated_memory(stream, parameter_memory_bytes(info), memory_budget_bytes);
+            stream.parameters.push_back(std::move(info));
         } else if (record.has_event()) {
             const auto& event = record.event();
             EventRow row;
@@ -285,6 +354,10 @@ StreamCache load_stream(const FileIdentity& identity)
             if (!stream.last_time || row.time > *stream.last_time)
                 stream.last_time = row.time;
 
+            add_estimated_memory(stream,
+                                 event_row_memory_bytes(row) + map_entry_overhead + string_memory_bytes(event_name)
+                                     + sizeof(uint64_t) + sizeof(size_t),
+                                 memory_budget_bytes);
             stream.counts_by_definition[event_name] += 1;
             stream.postings_by_event_name[event_name].push_back(stream.events.size());
             stream.events.push_back(std::move(row));
@@ -292,10 +365,15 @@ StreamCache load_stream(const FileIdentity& identity)
         record.Clear();
     }
 
-    stream.estimated_memory_bytes = stream.events.size() * sizeof(EventRow);
-    for (const auto& event : stream.events)
-        stream.estimated_memory_bytes += event.values.size() * sizeof(EventValue);
     return stream;
+}
+
+size_t cached_stream_memory_bytes(const GlobalCache& cache)
+{
+    size_t bytes = 0;
+    for (const auto& entry : cache.streams)
+        bytes += entry.second.estimated_memory_bytes;
+    return bytes;
 }
 
 StreamCache& get_stream(const fs::path& path)
@@ -303,8 +381,16 @@ StreamCache& get_stream(const fs::path& path)
     auto identity = identify(path);
     auto& cache = GlobalCache::instance();
     auto found = cache.streams.find(identity.canonical_path);
-    if (found == cache.streams.end() || !(found->second.identity == identity)) {
-        found = cache.streams.insert_or_assign(identity.canonical_path, load_stream(identity)).first;
+    if (found != cache.streams.end() && !(found->second.identity == identity)) {
+        cache.streams.erase(found);
+        found = cache.streams.end();
+    }
+    if (found == cache.streams.end()) {
+        auto used_memory_bytes = cached_stream_memory_bytes(cache);
+        auto available_memory_bytes =
+            cache.memory_budget_bytes > used_memory_bytes ? cache.memory_budget_bytes - used_memory_bytes : 0;
+        found = cache.streams.insert_or_assign(identity.canonical_path, load_stream(identity, available_memory_bytes))
+                    .first;
     }
     return found->second;
 }
@@ -1020,10 +1106,9 @@ CacheStats cache_stats()
     CacheStats stats;
     stats.streams = cache.streams.size();
     stats.memory_budget_bytes = cache.memory_budget_bytes;
-    for (const auto& [path, stream] : cache.streams) {
-        stats.aggregate_results += stream.count_results.size();
-        stats.estimated_memory_bytes += stream.estimated_memory_bytes;
-    }
+    stats.estimated_memory_bytes = cached_stream_memory_bytes(cache);
+    for (const auto& entry : cache.streams)
+        stats.aggregate_results += entry.second.count_results.size();
     return stats;
 }
 
@@ -1042,10 +1127,8 @@ void set_memory_budget(size_t bytes)
 {
     auto& cache = GlobalCache::instance();
     cache.memory_budget_bytes = bytes;
-    if (cache_stats().estimated_memory_bytes > bytes) {
-        for (auto& [path, stream] : cache.streams)
-            stream.count_results.clear();
-    }
+    if (cached_stream_memory_bytes(cache) > bytes)
+        cache.streams.clear();
 }
 
 } // namespace perf_streams::event_stream::mcp

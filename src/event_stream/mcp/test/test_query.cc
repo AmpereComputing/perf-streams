@@ -6,9 +6,11 @@
 #include "event_stream/mcp/query.h"
 #include "event_stream/testing/build_event_stream.h"
 
+#include <cstddef>
 #include <filesystem>
 #include <fmt/format.h>
 #include <map>
+#include <stdexcept>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -20,9 +22,19 @@ namespace fs = std::filesystem;
 class EventStreamMCPTest : public ::testing::Test
 {
 protected:
-    void SetUp() override { mcp::clear_cache(); }
+    static constexpr size_t default_memory_budget_bytes = 256 * 1024 * 1024;
 
-    void TearDown() override { mcp::clear_cache(); }
+    void SetUp() override
+    {
+        mcp::set_memory_budget(default_memory_budget_bytes);
+        mcp::clear_cache();
+    }
+
+    void TearDown() override
+    {
+        mcp::clear_cache();
+        mcp::set_memory_budget(default_memory_budget_bytes);
+    }
 
     static std::string stream(const std::string& name)
     {
@@ -137,4 +149,29 @@ TEST_F(EventStreamMCPTest, CacheInvalidatesWhenFileIdentityChanges)
 
     event_testing::build_es(stream("single.in"), output);
     EXPECT_EQ(mcp::inspect(path).event_count, 1);
+}
+
+TEST_F(EventStreamMCPTest, MemoryBudgetLimitsStreamLoading)
+{
+    auto path = build_es("basic.in");
+
+    mcp::set_memory_budget(1);
+    EXPECT_THROW({ static_cast<void>(mcp::inspect(path)); }, std::runtime_error);
+    EXPECT_EQ(mcp::cache_stats().streams, 0);
+
+    mcp::set_memory_budget(default_memory_budget_bytes);
+    EXPECT_EQ(mcp::inspect(path).event_count, 4);
+    EXPECT_GT(mcp::cache_stats().estimated_memory_bytes, 0);
+}
+
+TEST_F(EventStreamMCPTest, ReducingMemoryBudgetEvictsLoadedStreams)
+{
+    auto path = build_es("basic.in");
+
+    EXPECT_EQ(mcp::inspect(path).event_count, 4);
+    auto loaded_stats = mcp::cache_stats();
+    ASSERT_GT(loaded_stats.estimated_memory_bytes, 1);
+
+    mcp::set_memory_budget(loaded_stats.estimated_memory_bytes - 1);
+    EXPECT_EQ(mcp::cache_stats().streams, 0);
 }
