@@ -13,13 +13,20 @@ from typing import Any
 
 from perf_streams import _event_stream_mcp
 
+mcp_import_error: ImportError | None = None
+try:
+    from mcp.server.fastmcp import FastMCP
+except ImportError as exc:
+    mcp_import_error = exc
+    FastMCP = None
+
 
 def event_stream_inspect(path: str, include_values: bool = True, include_params: bool = True) -> dict[str, Any]:
     """Inspect an event stream."""
     return _event_stream_mcp.inspect(path, include_values=include_values, include_params=include_params)
 
 
-def event_stream_count(
+def event_stream_count(  # noqa: PLR0913
     path: str,
     events: list[str] | str | None = None,
     exclude: list[str] | str | None = None,
@@ -42,7 +49,7 @@ def event_stream_count(
     )
 
 
-def event_stream_latency(
+def event_stream_latency(  # noqa: PLR0913
     path: str,
     events: list[str],
     name: str | None = None,
@@ -76,12 +83,12 @@ def event_stream_rate(
     return _event_stream_mcp.rate(path, interval, events, suffix=suffix, factored=factored)
 
 
-def event_stream_params(path: str, params: list[str] | str | None = None, all: bool = False) -> dict[str, Any]:
+def event_stream_params(path: str, params: list[str] | str | None = None, all: bool = False) -> dict[str, Any]:  # noqa: A002
     """Return event stream parameters."""
     return _event_stream_mcp.params(path, params=params, all=all)
 
 
-def event_stream_sample(
+def event_stream_sample(  # noqa: PLR0913
     path: str,
     events: list[str] | str | None = None,
     start: int | str | None = None,
@@ -106,10 +113,8 @@ def event_stream_cache(action: str = "stats", path: str | None = None, memory_bu
 
 
 def _run_mcp_server() -> int:
-    try:
-        from mcp.server.fastmcp import FastMCP
-    except ImportError as exc:
-        print(f"Python MCP SDK is required to run the server: {exc}", file=sys.stderr)
+    if FastMCP is None:
+        sys.stderr.write(f"Python MCP SDK is required to run the server: {mcp_import_error}\n")
         return 1
 
     server = FastMCP("perf-streams-event-stream")

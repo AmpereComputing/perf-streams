@@ -12,6 +12,6 @@ set_target_properties(_event_stream_mcp PROPERTIES PREFIX "" SUFFIX ".so")
 
 install(TARGETS _event_stream_mcp LIBRARY DESTINATION ${INSTALL_PYTHON_PATH})
 install(FILES event_stream_mcp.py DESTINATION ${INSTALL_PYTHON_PATH})
-install(PROGRAMS perf-streams-event-stream-mcp DESTINATION ${INSTALL_BIN_PATH})
+install(PROGRAMS es_mcp DESTINATION ${INSTALL_BIN_PATH})
 
 add_subdirectory(test)

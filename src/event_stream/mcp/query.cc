@@ -138,9 +138,7 @@ FileIdentity identify(const fs::path& path)
     if (ec)
         canonical = fs::absolute(path);
 
-    struct stat st
-    {
-    };
+    struct stat st{};
     if (::stat(canonical.c_str(), &st) != 0)
         throw std::runtime_error{fmt::format("unable to stat event stream {}", canonical.string())};
 
@@ -266,8 +264,8 @@ StreamCache load_stream(const FileIdentity& identity)
             row.time = event.time();
 
             auto event_def = stream.definitions.find(row.definition_id);
-            std::string event_name = event_def == stream.definitions.end() ? fmt::format("#{}", row.definition_id)
-                                                                           : event_def->second.name;
+            std::string event_name =
+                event_def == stream.definitions.end() ? fmt::format("#{}", row.definition_id) : event_def->second.name;
 
             for (const auto& value : event.values()) {
                 EventValue converted;
@@ -440,7 +438,8 @@ void collect_count_metrics(const StreamCache& stream,
     auto excludes = parse_selectors(options.exclude);
 
     for (const auto& event : stream.events) {
-        if (!in_time_range(event, options.start, options.stop) || event.time < bucket_start || event.time >= bucket_stop)
+        if (!in_time_range(event, options.start, options.stop) || event.time < bucket_start
+            || event.time >= bucket_stop)
             continue;
         if (excluded(stream, event, excludes))
             continue;
@@ -461,7 +460,11 @@ void collect_count_metrics(const StreamCache& stream,
                         factor_value.value = Scalar::integer(adjusted);
                         factor_value.expanded.reset();
                     }
-                    add_metric(metrics, fmt::format("{}/{}:{}", event_name, factor.name, metric_value_name(factor_value, options.expand_enums)));
+                    add_metric(metrics,
+                               fmt::format("{}/{}:{}",
+                                           event_name,
+                                           factor.name,
+                                           metric_value_name(factor_value, options.expand_enums)));
                 }
             }
         }
@@ -629,9 +632,8 @@ std::vector<Metric> rate_for_event_interval(const StreamCache& stream, const Rat
     std::map<std::string, double> metrics;
     for (const auto& [name, rates] : histogram) {
         for (const auto& [rate, count] : rates) {
-            auto metric =
-                options.factored ? fmt::format("{}/{}:{}", name, options.suffix, rate)
-                                 : fmt::format("{}.{}.{}", name, options.suffix, rate);
+            auto metric = options.factored ? fmt::format("{}/{}:{}", name, options.suffix, rate)
+                                           : fmt::format("{}.{}.{}", name, options.suffix, rate);
             metrics[metric] = count;
         }
     }
@@ -671,9 +673,8 @@ std::vector<Metric> rate_for_time_interval(const StreamCache& stream, uint64_t i
     std::map<std::string, double> metrics;
     for (const auto& [name, rates] : histogram) {
         for (const auto& [rate, count] : rates) {
-            auto metric =
-                options.factored ? fmt::format("{}/{}:{}", name, options.suffix, rate)
-                                 : fmt::format("{}.{}.{}", name, options.suffix, rate);
+            auto metric = options.factored ? fmt::format("{}/{}:{}", name, options.suffix, rate)
+                                           : fmt::format("{}.{}.{}", name, options.suffix, rate);
             metrics[metric] = count;
         }
     }
@@ -685,7 +686,8 @@ bool parameter_selected(const ParameterInfo& parameter, const ParamsOptions& opt
     if (options.all || options.params.empty())
         return true;
 
-    return std::ranges::any_of(options.params, [&](const auto& selector) { return name_matches(selector, parameter.name); });
+    return std::ranges::any_of(options.params,
+                               [&](const auto& selector) { return name_matches(selector, parameter.name); });
 }
 
 } // namespace
@@ -890,7 +892,8 @@ LatencyResult latency(const fs::path& path, const LatencyOptions& options)
     std::string histogram_metric_name;
     std::unique_ptr<processor::FactorBounds> histogram_bounds;
     if (options.histogram)
-        std::tie(histogram_metric_name, histogram_bounds) = processor::FactorBounds::from_event_spec(*options.histogram);
+        std::tie(histogram_metric_name, histogram_bounds) =
+            processor::FactorBounds::from_event_spec(*options.histogram);
 
     std::vector<TimeCount> aggregated_info(events.size());
     std::vector<LatencyHist> aggregated_hist_info(events.size());
@@ -916,8 +919,7 @@ LatencyResult latency(const fs::path& path, const LatencyOptions& options)
             if (!key)
                 continue;
 
-            auto [tracker_iter, _inserted] =
-                trackers.try_emplace(*key, event.time, event_names.size());
+            auto [tracker_iter, _inserted] = trackers.try_emplace(*key, event.time, event_names.size());
             record_latency(tracker_iter->second, event.time, static_cast<int>(idx));
             if (!tracking_transactions && idx + 1 == event_names.size())
                 finalize(tracker_iter);
@@ -989,7 +991,8 @@ SampleResult sample(const fs::path& path, const SampleOptions& options)
             continue;
 
         const auto& event_name = event_definition(stream, event).name;
-        if (!std::ranges::any_of(selectors, [&](const auto& selector) { return name_matches(selector.event, event_name); }))
+        if (!std::ranges::any_of(selectors,
+                                 [&](const auto& selector) { return name_matches(selector.event, event_name); }))
             continue;
 
         EventSample row;
