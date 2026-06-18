@@ -9,10 +9,11 @@
 
 #include <cerrno>
 #include <cstdint>
-#include <cstdio>
 #include <filesystem>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
+#include <istream>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <system_error>
 
@@ -30,10 +31,9 @@ public:
 
 protected:
     std::filesystem::path filepath;
-    std::unique_ptr<google::protobuf::io::FileOutputStream> output_stream;
-
-private:
-    FILE* fp{nullptr};
+    std::unique_ptr<std::ostream> owned_output_stream;
+    std::unique_ptr<google::protobuf::io::CopyingOutputStream> copying_output_stream;
+    std::unique_ptr<google::protobuf::io::CopyingOutputStreamAdaptor> output_stream;
 };
 
 template<typename Item>
@@ -54,12 +54,11 @@ public:
 
 protected:
     std::filesystem::path filepath;
-    std::unique_ptr<google::protobuf::io::FileInputStream> input_stream;
+    std::unique_ptr<std::istream> owned_input_stream;
+    std::unique_ptr<google::protobuf::io::ZeroCopyInputStream> input_stream;
     std::unique_ptr<DelimitedReader> reader;
 
 private:
-    FILE* fp{nullptr};
-    int fd{-1};
     void verify_file_version(uint32_t magic_number, uint32_t max_version);
     void try_close();
     uint32_t stream_version;
@@ -75,4 +74,3 @@ bool ProtobufStreamReader::read(Item& item)
 }
 
 } // namespace perf_streams::protobuf_utils
-

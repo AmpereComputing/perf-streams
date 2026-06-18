@@ -2,9 +2,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "protobuf_utils/compressed_fstream.h"
+#include "protobuf_utils/protobuf_stream.h"
+#include "protobuf_utils/protobuf_utils.h"
+#include "protobuf_utils/test/example.pb.h"
 #include "testing/capture.h"
 
 #include <filesystem>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <ostream>
 #include <sstream>
 
@@ -79,3 +83,52 @@ INSTANTIATE_TEST_SUITE_P(CompressedFStreamIOTest,
                          CompressedFStreamIOTest,
                          ::testing::Values("", "zlib", "gz", "bz2", "xz"));
 
+class CompressedProtobufStreamSecurityTest : public ::testing::Test, public ::testing::WithParamInterface<std::string>
+{
+protected:
+    std::filesystem::path stream_path;
+    std::filesystem::path marker_path;
+
+    void SetUp() override
+    {
+        const auto extension = GetParam();
+        marker_path = "protobuf_stream_shell_marker_" + extension;
+        stream_path = "protobuf_stream; touch " + marker_path.string() + ";.es." + extension;
+        std::filesystem::remove(stream_path);
+        std::filesystem::remove(marker_path);
+    }
+
+    void TearDown() override
+    {
+        std::filesystem::remove(stream_path);
+        std::filesystem::remove(marker_path);
+    }
+};
+
+TEST_P(CompressedProtobufStreamSecurityTest, ReaderTreatsMetacharactersAsPath)
+{
+    constexpr uint32_t magic = 0x12345678;
+    constexpr uint32_t version = 4;
+
+    {
+        auto out = open_compressed_ostream(stream_path.string().c_str());
+        google::protobuf::io::OstreamOutputStream raw_output(out.get());
+        example::Hello hello;
+        hello.set_id(42);
+        hello.set_message("Hello, compressed path!");
+
+        ASSERT_TRUE(write_header_to(magic, version, &raw_output));
+        ASSERT_TRUE(write_delimited_to(hello, &raw_output));
+    }
+
+    ProtobufStreamReader reader(stream_path, magic, version);
+    example::Hello read_hello;
+    ASSERT_TRUE(reader.read(read_hello));
+    EXPECT_EQ(read_hello.id(), 42);
+    EXPECT_EQ(read_hello.message(), "Hello, compressed path!");
+    EXPECT_FALSE(std::filesystem::exists(marker_path));
+}
+
+INSTANTIATE_TEST_SUITE_P(CompressedProtobufStreamSecurityTest,
+                         CompressedProtobufStreamSecurityTest,
+                         ::testing::Values("gz", "xz"));
