@@ -5,7 +5,6 @@ set(SOURCES
     counter.h
     factor.cc
     factor.h
-    main.cc
     metric_table.cc
     metric_table.h
     plugin.cc
@@ -19,8 +18,13 @@ set(SOURCES
     utils.cc
     utils.h)
 
-add_executable(evp ${SOURCES})
-target_link_libraries(evp event_stream util fmt Python3::Python stdc++fs)
+add_library(event_stream_processor_core ${SOURCES})
+target_link_libraries(event_stream_processor_core PUBLIC event_stream fmt Python3::Python stdc++fs)
+target_link_libraries(event_stream_processor_core PRIVATE util)
+set_property(TARGET event_stream_processor_core PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+add_executable(evp main.cc)
+target_link_libraries(evp event_stream_processor_core)
 
 install(TARGETS evp DESTINATION ${INSTALL_BIN_PATH})
 

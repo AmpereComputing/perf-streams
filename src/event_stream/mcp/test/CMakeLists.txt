@@ -1,0 +1,4 @@
+add_cpp_test(test_event_stream_mcp_query SOURCES test_query.cc)
+target_link_libraries(test_event_stream_mcp_query event_stream_mcp_core event_stream_testing fmt)
+
+add_python_test(test_event_stream_mcp_python TESTS test_event_stream_mcp.py)

@@ -1,0 +1,4 @@
+enum state MISS=1 HIT=2
+100 access state=1
+200 access state=2
+300 access state=2

@@ -37,6 +37,7 @@ install(TARGETS event_stream
 install(FILES event_stream.py DESTINATION ${INSTALL_PYTHON_PATH})
 
 add_subdirectory(processor)
+add_subdirectory(mcp)
 add_subdirectory(tools)
 add_subdirectory(test)
 add_subdirectory(testing)

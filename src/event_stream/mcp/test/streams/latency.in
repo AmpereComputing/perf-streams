@@ -1,0 +1,6 @@
+100 a txid=1u
+120 a txid=2u
+200 b txid=1u
+370 b txid=2u
+400 end_transaction txid=1u
+500 end_transaction txid=2u

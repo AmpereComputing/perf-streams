@@ -1,0 +1,7 @@
+param core.machine_width=4
+param core.scheduler_configuration=[7,4]
+param three="four"
+100 one
+100 two
+200 one data1=42 data2=903
+300 two data1=21 data2=760
