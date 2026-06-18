@@ -36,7 +36,27 @@ def event_stream_count(  # noqa: PLR0913
     interval: int | str | None = None,
     expand_enums: bool = True,
 ) -> dict[str, Any]:
-    """Count events and event values."""
+    """Count events and event values.
+
+    You can also "factor" events on data items and count those factors individually. What this means is that if you have an event, for example, cache.lookup and it is posted with a data item called hit which has a value of 0 or 1, then you can separate the counts where hit is 0 and hit is 1 by specifying cache.lookup/hit. The resulting metrics will have the names cache.lookup/hit:0 and cache.lookup/hit:1 (though see the rename plugin for how to change these names).
+
+    It is common to have event and data items declared as siblings in the same module scope. For example, cache.lookup might be the full event name, and cache.hit might be the data name. If you want to use hit as a factor, you can still refer to this as cache.lookup/hit. The processor will first try to find hit in the same scope as lookup (that is, it will prepend the cache. automatically). If that fails, it will try to find hit as a global data name. If you need to force hit to be a global name, due to a name conflict, you can prepend a '.' like this: cache.lookup/.hit.
+
+    An event may have any number of factors: event/data1/data2/.... The counts will be split up into all combinations. It is possible to see in the output a metric name which does not include all data items. This happens if the event is posted without that data item on at least one occasion. The base event (total) count is also always included.
+
+    Data factors must have integer types to be used as factors today. There is no factoring on strings or floating point data.
+
+    Values can be restricted either by:
+
+        */factor_name:value: counts only events where factor_name = value
+        */factor_name[min:max:granularity:sequence]: adjusts factor value into a "histogram" format where:
+        min: minimum value emitted, any values below this will be set to min
+        max: maximum value emitted, any values above this will be set to max
+        granularity: granularity of value emitted (depends on sequence)
+        sequence: how the granularity is used, either:
+        linear (default): linear sequence of granularity. For example values 1,2,3,4 with a granularity of 2 would become 0,2,2,4
+        exp|exponential: exponential sequence, where granularity is the base. For example values 1,3,5,10 with a granularity of 2 would become 1,2,4,8 for example values 1,2,3,4 with a granularity of 2 would become 0,2,2,4
+    """
     return _event_stream_mcp.count(
         path,
         events=events,
