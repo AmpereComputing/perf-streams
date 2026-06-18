@@ -9,6 +9,9 @@
 #include "event_stream/event_stream_proto.h"
 #include "event_stream/event_stream_reader.h"
 #include "event_stream/processor/bounds.h"
+#include "event_stream/processor/plugins/count.h"
+#include "event_stream/processor/plugins/latency.h"
+#include "event_stream/processor/plugins/rate.h"
 #include "event_stream/processor/utils.h"
 
 #include <algorithm>
@@ -39,6 +42,7 @@ namespace perf_streams::event_stream::mcp {
 namespace fs = std::filesystem;
 namespace proto = perf_streams::event_stream_proto;
 namespace processor = perf_streams::event_stream::processor;
+namespace processor_plugins = perf_streams::event_stream::processor::plugins;
 
 namespace {
 
@@ -103,33 +107,6 @@ struct EventSelector
 {
     std::string event;
     std::vector<FactorSpec> factors;
-};
-
-struct TimeCount
-{
-    uint64_t time{0};
-    uint64_t count{0};
-};
-
-struct LatencyHist
-{
-    double stdev{0.0};
-    uint64_t min_latency{UINT64_MAX};
-    std::vector<uint64_t> max_latencies;
-    std::map<uint64_t, uint64_t> latency_counts;
-};
-
-struct LatencyTracker
-{
-    explicit LatencyTracker(uint64_t start_time, size_t event_count)
-        : time_per_event(event_count), last_event_time(start_time)
-    {
-    }
-
-    std::vector<TimeCount> time_per_event;
-    uint64_t last_event_time{0};
-    int last_event_idx{-1};
-    bool saw_start_event{false};
 };
 
 size_t string_memory_bytes(const std::string& value)
@@ -547,10 +524,8 @@ void collect_count_metrics(const StreamCache& stream,
                         factor_value.expanded.reset();
                     }
                     add_metric(metrics,
-                               fmt::format("{}/{}:{}",
-                                           event_name,
-                                           factor.name,
-                                           metric_value_name(factor_value, options.expand_enums)));
+                               processor_plugins::count_factor_metric_name(
+                                   event_name, factor.name, metric_value_name(factor_value, options.expand_enums)));
                 }
             }
         }
@@ -562,36 +537,12 @@ void collect_count_metrics(const StreamCache& stream,
 
             for (const auto& value : event.values) {
                 if (value.name == accum_value && value.value.numeric())
-                    add_metric(metrics, fmt::format("{}/{}", event_name, value.name), value.value.as_double());
+                    add_metric(metrics,
+                               processor_plugins::count_data_metric_name(event_name, value.name),
+                               value.value.as_double());
             }
         }
     }
-}
-
-std::string build_latency_name(const std::vector<std::string>& events)
-{
-    if (events.empty())
-        return "";
-
-    std::stringstream name;
-    auto prefix = processor::extract_prefix(events.front()).first;
-    bool first = true;
-    for (auto event : events) {
-        if (!first) {
-            name << "_";
-            auto [event_prefix, event_name] = processor::extract_prefix(event);
-            if (event_prefix == prefix) {
-                name << event_name;
-            } else {
-                std::replace(event.begin(), event.end(), '.', '_');
-                name << event;
-            }
-        } else {
-            name << event;
-        }
-        first = false;
-    }
-    return name.str();
 }
 
 std::optional<uint64_t> event_key(const EventRow& event, const std::set<std::string>& key_names)
@@ -605,87 +556,6 @@ std::optional<uint64_t> event_key(const EventRow& event, const std::set<std::str
             return static_cast<uint64_t>(std::get<int64_t>(value.value.value));
     }
     return {};
-}
-
-void record_latency(LatencyTracker& tracker, uint64_t now, int idx)
-{
-    if (tracker.last_event_idx >= 0) {
-        auto latency = now - tracker.last_event_time;
-        auto& time_count = tracker.time_per_event[tracker.last_event_idx];
-        time_count.time += latency;
-        time_count.count += 1;
-    }
-
-    tracker.last_event_time = now;
-    tracker.last_event_idx = idx;
-    if (idx == 0)
-        tracker.saw_start_event = true;
-}
-
-void aggregate_latency(const LatencyTracker& tracker,
-                       std::vector<TimeCount>& aggregated_info,
-                       std::vector<LatencyHist>& aggregated_hist_info,
-                       const std::unique_ptr<processor::FactorBounds>& histogram_bounds,
-                       bool histogram)
-{
-    if (!tracker.saw_start_event || tracker.last_event_idx < 0)
-        return;
-
-    for (size_t idx = 0; idx < tracker.time_per_event.size(); ++idx) {
-        const auto& tracker_entry = tracker.time_per_event[idx];
-        auto& info = aggregated_info[idx];
-        auto latency = tracker_entry.time;
-        info.time += tracker_entry.time;
-        info.count += tracker_entry.count;
-
-        if (!latency)
-            continue;
-
-        auto& hist_info = aggregated_hist_info[idx];
-        if (histogram) {
-            auto bucket = histogram_bounds ? histogram_bounds->adjust(latency) : latency;
-            ++hist_info.latency_counts[bucket];
-        }
-
-        hist_info.max_latencies.push_back(latency);
-        std::sort(hist_info.max_latencies.begin(), hist_info.max_latencies.end(), std::greater<uint64_t>());
-        if (hist_info.max_latencies.size() > 10)
-            hist_info.max_latencies.pop_back();
-
-        hist_info.min_latency = std::min(hist_info.min_latency, latency);
-        if (info.count > 1)
-            hist_info.stdev =
-                std::sqrt((info.time * info.time + (info.time * info.time) / info.count) / (info.count - 1));
-    }
-}
-
-void assign_latency_metrics(std::map<std::string, double>& metrics,
-                            const std::string& name,
-                            const TimeCount& info,
-                            const LatencyHist& hist_info,
-                            const std::string& histogram_metric_name,
-                            bool factored_histogram,
-                            const std::string& event = {})
-{
-    auto prefix = event.empty() ? name : fmt::format("{}.{}", name, event);
-    metrics[fmt::format("{}.sum_latency", prefix)] = info.time;
-    metrics[fmt::format("{}.count", prefix)] = info.count;
-    metrics[fmt::format("{}.stdev", prefix)] = hist_info.stdev;
-
-    if (!hist_info.max_latencies.empty()) {
-        metrics[fmt::format("{}.max_latency", prefix)] = hist_info.max_latencies.front();
-        metrics[fmt::format("{}.min_latency", prefix)] = hist_info.min_latency;
-        auto max_sum = std::accumulate(hist_info.max_latencies.begin(), hist_info.max_latencies.end(), uint64_t{0});
-        metrics[fmt::format("{}.max_avg_latency", prefix)] = max_sum / hist_info.max_latencies.size();
-    }
-
-    if (!histogram_metric_name.empty()) {
-        for (const auto& [latency, count] : hist_info.latency_counts) {
-            auto metric = factored_histogram ? fmt::format("{}/{}:{}", prefix, histogram_metric_name, latency)
-                                             : fmt::format("{}.{}.{}", prefix, histogram_metric_name, latency);
-            metrics[metric] = count;
-        }
-    }
 }
 
 std::vector<Metric> rate_for_event_interval(const StreamCache& stream, const RateOptions& options)
@@ -718,9 +588,7 @@ std::vector<Metric> rate_for_event_interval(const StreamCache& stream, const Rat
     std::map<std::string, double> metrics;
     for (const auto& [name, rates] : histogram) {
         for (const auto& [rate, count] : rates) {
-            auto metric = options.factored ? fmt::format("{}/{}:{}", name, options.suffix, rate)
-                                           : fmt::format("{}.{}.{}", name, options.suffix, rate);
-            metrics[metric] = count;
+            metrics[processor_plugins::histogram_metric_name(name, options.suffix, rate, options.factored)] = count;
         }
     }
     return metric_map_to_vector(metrics);
@@ -759,9 +627,7 @@ std::vector<Metric> rate_for_time_interval(const StreamCache& stream, uint64_t i
     std::map<std::string, double> metrics;
     for (const auto& [name, rates] : histogram) {
         for (const auto& [rate, count] : rates) {
-            auto metric = options.factored ? fmt::format("{}/{}:{}", name, options.suffix, rate)
-                                           : fmt::format("{}.{}.{}", name, options.suffix, rate);
-            metrics[metric] = count;
+            metrics[processor_plugins::histogram_metric_name(name, options.suffix, rate, options.factored)] = count;
         }
     }
     return metric_map_to_vector(metrics);
@@ -981,16 +847,16 @@ LatencyResult latency(const fs::path& path, const LatencyOptions& options)
         std::tie(histogram_metric_name, histogram_bounds) =
             processor::FactorBounds::from_event_spec(*options.histogram);
 
-    std::vector<TimeCount> aggregated_info(events.size());
-    std::vector<LatencyHist> aggregated_hist_info(events.size());
-    std::unordered_map<uint64_t, LatencyTracker> trackers;
+    processor_plugins::LatencyInfo aggregated_info(events.size());
+    processor_plugins::LatencyHistInfo aggregated_hist_info(events.size());
+    std::unordered_map<uint64_t, processor_plugins::LatencyTracker> trackers;
 
     auto finalize = [&](auto tracker_iter) {
-        aggregate_latency(tracker_iter->second,
-                          aggregated_info,
-                          aggregated_hist_info,
-                          histogram_bounds,
-                          static_cast<bool>(options.histogram));
+        processor_plugins::aggregate_latency(tracker_iter->second,
+                                             aggregated_info,
+                                             aggregated_hist_info,
+                                             histogram_bounds.get(),
+                                             static_cast<bool>(options.histogram));
         trackers.erase(tracker_iter);
     };
 
@@ -1006,7 +872,7 @@ LatencyResult latency(const fs::path& path, const LatencyOptions& options)
                 continue;
 
             auto [tracker_iter, _inserted] = trackers.try_emplace(*key, event.time, event_names.size());
-            record_latency(tracker_iter->second, event.time, static_cast<int>(idx));
+            processor_plugins::record_latency(tracker_iter->second, event.time, static_cast<int>(idx));
             if (!tracking_transactions && idx + 1 == event_names.size())
                 finalize(tracker_iter);
         }
@@ -1021,23 +887,26 @@ LatencyResult latency(const fs::path& path, const LatencyOptions& options)
     }
 
     std::map<std::string, double> metrics;
-    auto metric_name = options.name.value_or(build_latency_name(events));
-    assign_latency_metrics(metrics,
-                           metric_name,
-                           aggregated_info.front(),
-                           aggregated_hist_info.front(),
-                           histogram_metric_name,
-                           options.factored);
+    auto metric_name = options.name.value_or(processor_plugins::build_latency_name(events));
+    processor_plugins::assign_latency_metrics(metrics,
+                                              metric_name,
+                                              aggregated_info.front(),
+                                              aggregated_hist_info.front(),
+                                              histogram_metric_name,
+                                              options.factored,
+                                              "",
+                                              !histogram_metric_name.empty());
 
     if (events.size() > 2) {
         for (size_t idx = 0; idx < events.size() - 1; ++idx) {
-            assign_latency_metrics(metrics,
-                                   metric_name,
-                                   aggregated_info[idx],
-                                   aggregated_hist_info[idx],
-                                   histogram_metric_name,
-                                   options.factored,
-                                   aliases[idx]);
+            processor_plugins::assign_latency_metrics(metrics,
+                                                      metric_name,
+                                                      aggregated_info[idx],
+                                                      aggregated_hist_info[idx],
+                                                      histogram_metric_name,
+                                                      options.factored,
+                                                      aliases[idx],
+                                                      !histogram_metric_name.empty());
         }
     }
 

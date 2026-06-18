@@ -1,6 +1,8 @@
 // Copyright (c) 2026, Ampere Computing LLC
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "event_stream/processor/plugins/latency.h"
+
 #include "event_stream/event_stream.pb.h"
 #include "event_stream/processor/args.h"
 #include "event_stream/processor/bounds.h"
@@ -49,37 +51,11 @@ private:
 
     size_t max_latencies_vector_size{10};
 
-    struct TimeCount
-    {
-        uint64_t time{0};
-        uint64_t count{0};
-    };
-
-    struct LatencyHist
-    {
-        float stdev{0.0};
-        uint64_t min_latency{UINT64_MAX};
-        std::vector<uint64_t> max_N_latencies;
-        std::map<uint64_t, uint64_t> latency_counts;
-    };
-
-    using LatencyInfo = std::vector<TimeCount>;
+    using TimeCount = plugins::TimeCount;
+    using LatencyHist = plugins::BasicLatencyHist<float>;
+    using LatencyTracker = plugins::LatencyTracker;
+    using LatencyInfo = plugins::LatencyInfo;
     using LatencyHistInfo = std::vector<LatencyHist>;
-
-    struct LatencyTracker
-    {
-        LatencyTracker(uint64_t start_time, size_t num_events)
-            : time_per_event(num_events), last_event_time{start_time}, last_event_idx{-1}
-        {
-        }
-
-        LatencyInfo time_per_event;
-
-        uint64_t last_event_time;
-        int last_event_idx;
-
-        bool saw_start_event{false};
-    };
 
     std::vector<std::string> events;
     std::vector<std::string> event_aliases;
@@ -100,16 +76,11 @@ private:
     bool tracking_transactions{true};
     std::unordered_set<int> key_definitions;
 
-    static std::string build_name(const std::vector<std::string>& events);
     void update_latency(Counter * counter, const event_stream_proto::Event& event, int idx);
     void end_transaction(Counter * counter, const event_stream_proto::Event& event);
-    void record_latency(LatencyTracker & tracker, uint64_t now, int idx);
     void finalize_latency(const TrackerIter& tracker);
-    void aggregate_latency(LatencyTracker & tracker);
     std::optional<uint64_t> get_key(const event_stream_proto::Event& event) const;
     TrackerIter get_tracker_by_key(const event_stream_proto::Event& event);
-    void assign_latency_metrics(
-        MetricSeries & metrics, const TimeCount& info, const LatencyHist& hist_info, std::string event = {});
 };
 
 Latency::Latency(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
@@ -187,7 +158,7 @@ Latency::Latency(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
 
     if (enable) {
         if (name.empty())
-            name = build_name(events);
+            name = plugins::build_latency_name(events);
 
         if (tracking_transactions)
             on_every("end_transaction", &Latency::end_transaction);
@@ -210,31 +181,6 @@ void Latency::help(int argc, const char** argv)
 )");
 }
 
-std::string Latency::build_name(const std::vector<std::string>& events)
-{
-    std::stringstream nm{};
-    bool first{true};
-    auto prefix = extract_prefix(events[0]).first;
-
-    for (const auto& event : events) {
-        if (!first) {
-            nm << "_";
-            if (auto [e_prefix, e_name] = extract_prefix(event); e_prefix == prefix) {
-                nm << e_name;
-            } else {
-                auto event_name = event;
-                std::ranges::replace(event_name, '.', '_');
-                nm << event_name;
-            }
-        } else {
-            nm << event;
-        }
-        first = false;
-    }
-
-    return nm.str();
-}
-
 void Latency::define_value(const Definition& value_def)
 {
     if (key_data_names.contains(value_def.name()))
@@ -248,32 +194,21 @@ void Latency::update_latency(Counter* counter, const event_stream_proto::Event& 
         if (tracker_iter == trackers.end())
             std::tie(tracker_iter, std::ignore) = trackers.insert({*key, LatencyTracker(event.time(), events.size())});
 
-        record_latency(tracker_iter->second, event.time(), idx);
+        plugins::record_latency(tracker_iter->second, event.time(), idx);
 
         if (!tracking_transactions && static_cast<size_t>(idx + 1) == events.size())
             finalize_latency(tracker_iter);
     }
 }
 
-void Latency::record_latency(LatencyTracker& tracker, uint64_t now, int idx)
-{
-    if (tracker.last_event_idx >= 0) {
-        auto latency = now - tracker.last_event_time;
-        auto& time_count = tracker.time_per_event[tracker.last_event_idx];
-        time_count.time += latency;
-        time_count.count += 1;
-    }
-
-    tracker.last_event_time = now;
-    tracker.last_event_idx = idx;
-
-    if (idx == 0)
-        tracker.saw_start_event = true;
-}
-
 void Latency::finalize_latency(const TrackerIter& tracker_iter)
 {
-    aggregate_latency(tracker_iter->second);
+    plugins::aggregate_latency(tracker_iter->second,
+                               aggregated_info,
+                               aggregated_hist_info,
+                               histogram_bounds.get(),
+                               histogram,
+                               max_latencies_vector_size);
     trackers.erase(tracker_iter);
 }
 
@@ -281,47 +216,6 @@ void Latency::end_transaction(Counter* counter, const event_stream_proto::Event&
 {
     if (auto tracker_iter = get_tracker_by_key(event); tracker_iter != trackers.end())
         finalize_latency(tracker_iter);
-}
-
-void Latency::aggregate_latency(LatencyTracker& tracker)
-{
-    if (tracker.saw_start_event && tracker.last_event_idx >= 0) {
-        for (size_t i = 0; i < tracker.time_per_event.size(); ++i) {
-            const auto& tracker_entry = tracker.time_per_event[i];
-            auto& info = aggregated_info[i];
-            auto latency = tracker_entry.time;
-            info.time += tracker_entry.time;
-            info.count += tracker_entry.count;
-
-            if (!latency)
-                continue;
-
-            auto& hist_info = aggregated_hist_info[i];
-            if (histogram) {
-                auto bucket = histogram_bounds ? histogram_bounds->adjust(latency) : latency;
-                ++hist_info.latency_counts[bucket];
-            }
-
-            if ((hist_info.max_N_latencies.size() >= max_latencies_vector_size)
-                && (latency > hist_info.max_N_latencies.back()))
-            {
-                hist_info.max_N_latencies.pop_back();
-                hist_info.max_N_latencies.push_back(latency);
-                std::ranges::sort(hist_info.max_N_latencies, std::greater<>());
-            } else if (hist_info.max_N_latencies.size() < max_latencies_vector_size) {
-                hist_info.max_N_latencies.push_back(latency);
-                std::ranges::sort(hist_info.max_N_latencies, std::greater<>());
-            }
-
-            if (latency < hist_info.min_latency)
-                hist_info.min_latency = latency;
-            if (info.count == 1)
-                continue;
-
-            hist_info.stdev =
-                std::sqrt((info.time * info.time + (info.time * info.time) / info.count) / (info.count - 1));
-        }
-    }
 }
 
 std::optional<uint64_t> Latency::get_key(const event_stream_proto::Event& event) const
@@ -343,53 +237,30 @@ Latency::TrackerIter Latency::get_tracker_by_key(const event_stream_proto::Event
     return trackers.end();
 }
 
-void Latency::assign_latency_metrics(MetricSeries& metrics,
-                                     const TimeCount& info,
-                                     const LatencyHist& hist_info,
-                                     std::string event)
-{
-    auto prefix = event.empty() ? name : fmt::format("{}.{}", name, event);
-    auto time_metric = fmt::format("{}.sum_latency", prefix);
-    auto count_metric = fmt::format("{}.count", prefix);
-    auto stdev_metric = fmt::format("{}.stdev", prefix);
-    auto max_avg_latency_metric = fmt::format("{}.max_avg_latency", prefix);
-    auto max_latency_metric = fmt::format("{}.max_latency", prefix);
-    auto min_latency_metric = fmt::format("{}.min_latency", prefix);
-
-    metrics[time_metric] = info.time;
-    metrics[count_metric] = info.count;
-    metrics[stdev_metric] = hist_info.stdev;
-
-    if (!hist_info.max_N_latencies.empty()) {
-        metrics[max_latency_metric] = hist_info.max_N_latencies.front();
-        metrics[min_latency_metric] = hist_info.min_latency;
-
-        uint64_t max_lat_sum = 0;
-        for (const auto& lat : hist_info.max_N_latencies)
-            max_lat_sum += lat;
-
-        metrics[max_avg_latency_metric] = max_lat_sum / hist_info.max_N_latencies.size();
-    }
-
-    if (histogram) {
-        for (const auto& [latency, count] : hist_info.latency_counts) {
-            auto bucket = factored_histogram ? fmt::format("{}/{}:{}", prefix, histogram_metric_name, latency)
-                                             : fmt::format("{}.{}.{}", prefix, histogram_metric_name, latency);
-            metrics[bucket] = count;
-        }
-    }
-}
-
 void Latency::collect(MetricSeries& metrics, uint64_t trigger_time)
 {
     if (!enable)
         return;
 
-    assign_latency_metrics(metrics, aggregated_info[0], aggregated_hist_info[0]);
+    plugins::assign_latency_metrics(metrics,
+                                    name,
+                                    aggregated_info[0],
+                                    aggregated_hist_info[0],
+                                    histogram_metric_name,
+                                    factored_histogram,
+                                    "",
+                                    histogram);
 
     if (events.size() > 2) {
         for (size_t i = 0; i < events.size() - 1; ++i)
-            assign_latency_metrics(metrics, aggregated_info[i], aggregated_hist_info[i], event_aliases[i]);
+            plugins::assign_latency_metrics(metrics,
+                                            name,
+                                            aggregated_info[i],
+                                            aggregated_hist_info[i],
+                                            histogram_metric_name,
+                                            factored_histogram,
+                                            event_aliases[i],
+                                            histogram);
     }
 }
 

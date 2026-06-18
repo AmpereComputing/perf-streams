@@ -1,6 +1,8 @@
 // Copyright (c) 2026, Ampere Computing LLC
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "event_stream/processor/plugins/rate.h"
+
 #include "event_stream/processor/args.h"
 #include "event_stream/processor/bounds.h"
 #include "event_stream/processor/counter.h"
@@ -39,7 +41,6 @@ public:
 
 private:
     void collect_within();
-    std::string format_event_name(const std::string& event_name, const std::string& name, int64_t rate) const;
 
     bool ended = false;
     bool factored = false;
@@ -113,11 +114,6 @@ void Rate::collect_within_time(uint64_t current_time, uint64_t expiry)
     collect_within();
 }
 
-std::string Rate::format_event_name(const std::string& event_name, const std::string& name, int64_t rate) const
-{
-    return factored ? fmt::format("{}/{}:{}", event_name, name, rate) : fmt::format("{}.{}.{}", event_name, name, rate);
-}
-
 void Rate::collect(MetricSeries& metrics, uint64_t trigger_time)
 {
     if (ended)
@@ -129,7 +125,7 @@ void Rate::collect(MetricSeries& metrics, uint64_t trigger_time)
             const auto& event_name = get_definition(counter.event_definition_id).name();
 
             for (auto [rate, count] : histogram[counter_id])
-                metrics[format_event_name(event_name, name, rate)] = count;
+                metrics[plugins::histogram_metric_name(event_name, name, rate, factored)] = count;
         }
     }
 }

@@ -1,6 +1,8 @@
 // Copyright (c) 2026, Ampere Computing LLC
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "event_stream/processor/plugins/count.h"
+
 #include "event_stream/processor/args.h"
 #include "event_stream/processor/counter.h"
 #include "event_stream/processor/factor.h"
@@ -93,9 +95,8 @@ void Count::help(int argc, const char** argv)
 std::string Count::counter_name(const Counter& counter) const
 {
     if (counter.data_definition_id) {
-        return fmt::format("{}/{}",
-                           get_definition(counter.event_definition_id).name(),
-                           get_definition(counter.data_definition_id).name());
+        return plugins::count_data_metric_name(get_definition(counter.event_definition_id).name(),
+                                               get_definition(counter.data_definition_id).name());
     }
 
     return get_definition(counter.event_definition_id).name();
@@ -114,20 +115,22 @@ std::string Count::factor_name(const std::string& name, const FactorKey& factor_
 
         const auto& data_def = get_definition(data_def_id < 0 ? -data_def_id : data_def_id);
 
-        ss << '/' << data_def.name() << ':';
         const auto* name = expand_enumerations ? enumeration_value_for_definition(data_def, data_value) : nullptr;
+        std::string value_name;
         if (name)
-            ss << name;
+            value_name = name;
         else if (data_def_id < 0)
-            ss << static_cast<int64_t>(data_value);
+            value_name = fmt::format("{}", static_cast<int64_t>(data_value));
         else
-            ss << data_value;
+            value_name = fmt::format("{}", data_value);
+
+        ss << plugins::count_factor_metric_suffix(data_def.name(), value_name);
 
         ++added_factors;
     }
 
     if (added_factors == 0)
-        ss << '/';
+        return plugins::count_empty_factor_metric_name(name);
 
     return ss.str();
 }
