@@ -180,8 +180,7 @@ std::tuple<Args, PluginsWithArgs> partition_args(int argc, const char** argv)
 
             in_plugin = nullptr;
             if (auto p = registered_plugins().find(name); p != registered_plugins().end() && p->second.signular()) {
-                auto existing =
-                    std::find_if(plugins.begin(), plugins.end(), [&](const auto& p) { return p.name == name; });
+                auto existing = std::ranges::find_if(plugins, [&](const auto& p) { return p.name == name; });
 
                 if (existing != plugins.end())
                     in_plugin = &*existing;

@@ -139,8 +139,7 @@ void List::start_simulation()
 
     if (!list_values && !list_enum.empty()) {
         for (const auto& [id, values] : enum_values) {
-            const auto& name =
-                std::find_if(list_enum.begin(), list_enum.end(), [&](const auto& e) { return e.second == id; })->first;
+            const auto& name = std::ranges::find_if(list_enum, [&](const auto& e) { return e.second == id; })->first;
 
             fmt::print("value {}\n", name);
             print_enum_values(values);

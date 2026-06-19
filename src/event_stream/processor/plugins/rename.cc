@@ -47,8 +47,7 @@ private:
         {
             auto replaced = std::regex_replace(name, from, to);
             if (type & LOWERCASE)
-                std::transform(
-                    replaced.begin(), replaced.end(), replaced.begin(), [](auto c) { return std::tolower(c); });
+                std::ranges::transform(replaced, replaced.begin(), [](auto c) { return std::tolower(c); });
             return replaced;
         }
     };

@@ -223,7 +223,7 @@ std::string Latency::build_name(const std::vector<std::string>& events)
                 nm << e_name;
             } else {
                 auto event_name = event;
-                std::replace(event_name.begin(), event_name.end(), '.', '_');
+                std::ranges::replace(event_name, '.', '_');
                 nm << event_name;
             }
         } else {
@@ -307,10 +307,10 @@ void Latency::aggregate_latency(LatencyTracker& tracker)
             {
                 hist_info.max_N_latencies.pop_back();
                 hist_info.max_N_latencies.push_back(latency);
-                std::sort(hist_info.max_N_latencies.begin(), hist_info.max_N_latencies.end(), std::greater<uint64_t>());
+                std::ranges::sort(hist_info.max_N_latencies, std::greater<uint64_t>());
             } else if (hist_info.max_N_latencies.size() < max_latencies_vector_size) {
                 hist_info.max_N_latencies.push_back(latency);
-                std::sort(hist_info.max_N_latencies.begin(), hist_info.max_N_latencies.end(), std::greater<uint64_t>());
+                std::ranges::sort(hist_info.max_N_latencies, std::greater<uint64_t>());
             }
 
             if (latency < hist_info.min_latency)

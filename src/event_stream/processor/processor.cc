@@ -804,8 +804,7 @@ void Processor::add_factors(Counter& counter, const std::string& event_name, con
 
 std::pair<int, Counter*> Processor::add_counter(Counter counter)
 {
-    if (auto existing =
-            std::find_if(counters.begin(), counters.end(), [&](const auto& c) { return c && *c == counter; });
+    if (auto existing = std::ranges::find_if(counters, [&](const auto& c) { return c && *c == counter; });
         existing != counters.end() && !(**existing).has_action())
     {
         return {std::distance(counters.begin(), existing), &**existing};
@@ -822,7 +821,7 @@ std::pair<int, Counter*> Processor::add_counter(Counter counter)
 
 int Processor::remove_counter(Counter counter)
 {
-    auto existing = std::find_if(counters.begin(), counters.end(), [&](const auto& c) { return c && *c == counter; });
+    auto existing = std::ranges::find_if(counters, [&](const auto& c) { return c && *c == counter; });
     if (existing == counters.end())
         return -1;
 

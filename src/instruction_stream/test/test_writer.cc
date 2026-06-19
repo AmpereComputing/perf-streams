@@ -36,7 +36,7 @@ TEST_F(InstructionStreamWriterTest, Uncompressed)
     features.set_memory_translation(true);
     features.set_memory_values(false);
 
-    instruction_stream::InstructionStreamWriter* writer =
+    auto* writer =
         new instruction_stream::InstructionStreamWriter(this->test_file_name("is").string().c_str(), features);
 
     instruction_stream::Instruction instruction;
@@ -111,8 +111,7 @@ TEST_F(InstructionStreamWriterTest, Compressed)
     features.set_memory_translation(true);
     features.set_memory_values(false);
 
-    instruction_stream::InstructionStreamWriter* writer =
-        new instruction_stream::InstructionStreamWriter(test_file_name("is.xz"), features);
+    auto* writer = new instruction_stream::InstructionStreamWriter(test_file_name("is.xz"), features);
 
     write_control(writer, instruction_stream::Control_Type_START_MEASUREMENT);
 
@@ -128,8 +127,7 @@ TEST_F(InstructionStreamWriterTest, Compressed)
     writer->finalize();
     delete writer;
 
-    instruction_stream::InstructionStreamReader* reader =
-        new instruction_stream::InstructionStreamReader(test_file_name("is.xz"));
+    auto* reader = new instruction_stream::InstructionStreamReader(test_file_name("is.xz"));
 
     // are the feature bits preserved?
     ASSERT_FALSE(reader->features().divide_sqrt_registers());
@@ -168,7 +166,7 @@ TEST_F(InstructionStreamWriterTest, Compressed)
 TEST_F(InstructionStreamWriterTest, testInvalidControlOrdering)
 {
     instruction_stream::Features features;
-    instruction_stream::InstructionStreamWriter* writer =
+    auto* writer =
         new instruction_stream::InstructionStreamWriter(this->test_file_name("is").string().c_str(), features);
     EXPECT_THROW(writer->finalize(), std::runtime_error);
     EXPECT_THROW(write_control(writer, instruction_stream::Control_Type_STOP_MEASUREMENT), std::runtime_error);

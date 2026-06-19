@@ -196,7 +196,7 @@ public:
         if (enabled && event_stream->is_enabled()) {
             auto args = make_arg_pack(std::forward<T>(first), std::forward<Ts>(rest)...);
             auto* eh = event_stream->open_event(definition, at_time);
-            arg_iter<std::tuple_size<decltype(args)>::value>::add_data(*event_stream, eh, args);
+            arg_iter<std::tuple_size_v<decltype(args)>>::add_data(*event_stream, eh, args);
             event_stream->close_event(eh);
         }
     }
