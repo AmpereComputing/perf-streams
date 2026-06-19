@@ -124,12 +124,13 @@ clang-format-check:
 	$(CLANG_TIDY) -config-file .clang-tidy-required \
 		-source-filter "$(PROJECT_DIR)/src/.*.cc" \
 		-header-filter "$(PROJECT_DIR)/src/.*.h" \
+		-exclude-header-filter ".*/strnatcmp.h" \
 		-p $(BUILD_DIRECTORY) \
 		-j 0 $(CLANG_TIDY_ARGS)
 
 .PHONY: clang-tidy
 clang-tidy: .require-clean
-	$(MAKE) .clang-tidy CLANG_TIDY_ARGS="-fix"
+	$(MAKE) .clang-tidy CLANG_TIDY_ARGS="-fix -format"
 
 .PHONY: clang-tidy-check
 clang-tidy-check:
