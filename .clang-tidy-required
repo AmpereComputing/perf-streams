@@ -1,6 +1,14 @@
 ---
 FormatStyle: file
 Checks: "-*,
+  modernize-*,
+  -modernize-avoid-c-arrays,
+  -modernize-avoid-c-style-cast,
+  -modernize-pass-by-value,
+  -modernize-use-default-member-init,
+  -modernize-use-designated-initializers,
+  -modernize-use-nodiscard,
+  -modernize-use-trailing-return-type,
   bugprone-*,
   -bugprone-assignment-in-if-condition,
   -bugprone-branch-clone,
