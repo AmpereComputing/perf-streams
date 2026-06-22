@@ -121,12 +121,18 @@ clang-format-check:
 
 .PHONY: .clang-tidy
 .clang-tidy: configure
-	$(CLANG_TIDY) -config-file .clang-tidy-required \
+	! $(CLANG_TIDY) -hide-progress -config-file .clang-tidy-required \
 		-source-filter "$(PROJECT_DIR)/src/.*.cc" \
 		-header-filter "$(PROJECT_DIR)/src/.*.h" \
 		-exclude-header-filter ".*/strnatcmp.h" \
 		-p $(BUILD_DIRECTORY) \
-		-j 0 $(CLANG_TIDY_ARGS)
+		-j 0 $(CLANG_TIDY_ARGS) \
+		| grep --line-buffered -v 'Enabled checks' \
+		| grep --line-buffered -ve '^    [a-z-]\+$$' \
+		| grep --line-buffered -v '^$$' \
+		| grep --line-buffered -v "warnings generated." \
+		| grep --line-buffered -v "Suppressed" \
+		| grep --line-buffered -v "errors from all non-system headers"
 
 .PHONY: clang-tidy
 clang-tidy: .require-clean
@@ -134,13 +140,7 @@ clang-tidy: .require-clean
 
 .PHONY: clang-tidy-check
 clang-tidy-check:
-	! $(MAKE) .clang-tidy CLANG_TIDY_ARGS="-hide-progress" \
-		| grep --line-buffered -v 'Enabled checks' \
-		| grep --line-buffered -ve '^    [a-z-]\+$$' \
-		| grep --line-buffered -v '^$$' \
-		| grep --line-buffered -v "warnings generated." \
-		| grep --line-buffered -v "Suppressed" \
-		| grep --line-buffered -v "errors from all non-system headers"
+	$(MAKE) .clang-tidy
 
 .PHONY: .python-format
 .python-format:
