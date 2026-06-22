@@ -23,12 +23,12 @@ protected:
 
 TEST_F(BranchStreamReaderTest, MissingFile)
 {
-    ASSERT_THROW(BranchStreamReader bs("doesnotexist.bs"), std::system_error);
+    ASSERT_THROW(const BranchStreamReader bs("doesnotexist.bs"), std::system_error);
 }
 
 TEST_F(BranchStreamReaderTest, MissingXZFile)
 {
-    ASSERT_THROW(BranchStreamReader bs("doesnotexist.bs.xz"), std::system_error);
+    ASSERT_THROW(const BranchStreamReader bs("doesnotexist.bs.xz"), std::system_error);
 }
 
 TEST_F(BranchStreamReaderTest, Read)

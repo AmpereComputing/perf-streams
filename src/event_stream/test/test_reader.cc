@@ -27,7 +27,7 @@ protected:
 
 TEST_F(EventStreamReaderTest, TestMissingFile)
 {
-    ASSERT_ANY_THROW(EventStreamReader reader("missing.es"));
+    ASSERT_ANY_THROW(const EventStreamReader reader("missing.es"));
 }
 
 TEST_F(EventStreamReaderTest, TestFileDescriptorConstructor)

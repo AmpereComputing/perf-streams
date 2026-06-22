@@ -307,10 +307,10 @@ void Latency::aggregate_latency(LatencyTracker& tracker)
             {
                 hist_info.max_N_latencies.pop_back();
                 hist_info.max_N_latencies.push_back(latency);
-                std::ranges::sort(hist_info.max_N_latencies, std::greater<uint64_t>());
+                std::ranges::sort(hist_info.max_N_latencies, std::greater<>());
             } else if (hist_info.max_N_latencies.size() < max_latencies_vector_size) {
                 hist_info.max_N_latencies.push_back(latency);
-                std::ranges::sort(hist_info.max_N_latencies, std::greater<uint64_t>());
+                std::ranges::sort(hist_info.max_N_latencies, std::greater<>());
             }
 
             if (latency < hist_info.min_latency)

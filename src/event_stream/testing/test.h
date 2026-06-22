@@ -45,7 +45,7 @@ struct BothDefinitionExample : EventDefinitionExample, EventDataDefinitionExampl
 {
     template<typename... Args>
     explicit BothDefinitionExample(EventStream& event_stream, Args&&... args)
-        : EventDefinitionExample(event_stream, "event"), EventDataDefinitionExample<T>(event_stream, "data")
+        : EventDefinitionExample(event_stream, "event"), EventDataDefinitionExample<T>(event_stream, "data", std::forward<Args>(args)...)
     {
     }
 };
