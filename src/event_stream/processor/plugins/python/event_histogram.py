@@ -4,7 +4,6 @@
 """Histogram based upon event data as key."""
 
 import evp
-
 from perf_streams.event_stream import Event, EventScalarValue
 from perf_streams.processor.histogram import Histogram
 

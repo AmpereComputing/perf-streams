@@ -9,7 +9,6 @@ from contextlib import ExitStack
 from pathlib import Path
 
 import evp
-
 from perf_streams.event_stream import Event, EventScalarValue
 from perf_streams.processor.histogram import Histogram
 

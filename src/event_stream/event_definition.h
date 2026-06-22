@@ -177,7 +177,7 @@ struct arg_iter<0>
     }
 };
 
-} // namespace
+} // namespace detail
 
 class EventDefinition
 {
