@@ -78,10 +78,10 @@ std::vector<std::string> parse_arguments(std::vector<std::string> arguments, Opt
                 positional_arguments.push_back(arguments[i]);
         }
     } catch (std::out_of_range&) {
-        std::cerr << "missing argument value" << std::endl;
+        std::cerr << "missing argument value" << '\n';
         print_help_and_exit();
     } catch (std::runtime_error& err) {
-        std::cerr << err.what() << std::endl;
+        std::cerr << err.what() << '\n';
         print_help_and_exit();
     }
 
@@ -97,8 +97,8 @@ int main(int argc, char** argv)
     if (files.size() != 2)
         print_help_and_exit();
 
-    std::filesystem::path input_file_path(files[0]);
-    std::filesystem::path output_file_path(files[1]);
+    std::filesystem::path const input_file_path(files[0]);
+    std::filesystem::path const output_file_path(files[1]);
 
     auto reader = std::make_unique<InstructionStreamReader>(input_file_path);
     InstructionStreamWriter writer(output_file_path, reader->features(), options.force);
@@ -108,12 +108,12 @@ int main(int argc, char** argv)
                               + options.cooldown_instructions;
 
     if (reader->version() < 2) {
-        std::cerr << "Error: Instruction stream version < 2" << std::endl;
+        std::cerr << "Error: Instruction stream version < 2" << '\n';
         exit(1);
     }
 
     std::cout << "Chopping " << input_file_path << " to " << options.measured_instructions << " instructions with "
-              << options.warmup_instructions << " instructions of warmup." << std::endl;
+              << options.warmup_instructions << " instructions of warmup." << '\n';
     if (options.trim_memory)
         std::cout << "Trimming initial memory image to only addresses needed by output instructions\n";
     else
@@ -181,7 +181,7 @@ int main(int argc, char** argv)
     if (instruction_count < options.wait_instructions + options.warmup_instructions + options.measured_instructions
                                 + options.cooldown_instructions)
     {
-        std::cerr << "Error: Did not successfully read enough instructions from the input stream" << std::endl;
+        std::cerr << "Error: Did not successfully read enough instructions from the input stream" << '\n';
         exit(1);
     }
 

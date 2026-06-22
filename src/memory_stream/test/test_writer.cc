@@ -49,7 +49,7 @@ TEST_F(MemoryStreamWriterTest, Uncompressed)
         ASSERT_TRUE(writer->write(access));
     }
 
-    int fd = open(output_stream_name.string().c_str(), O_RDONLY);
+    int const fd = open(output_stream_name.string().c_str(), O_RDONLY);
     ASSERT_GT(fd, 2);
 
     {

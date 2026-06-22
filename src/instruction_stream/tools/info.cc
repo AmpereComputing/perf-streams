@@ -17,7 +17,7 @@ using namespace perf_streams::instruction_stream;
 int main(int argc, char** argv)
 {
     if (argc != 2) {
-        std::cout << argv[0] << " [instruction stream]" << std::endl;
+        std::cout << argv[0] << " [instruction stream]" << '\n';
         exit(1);
     }
 

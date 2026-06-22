@@ -20,7 +20,7 @@ class DelimitedTest : public ::testing::Test
 protected:
     void SetUp() override
     {
-        int fd = open("example.es", O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR);
+        int const fd = open("example.es", O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR);
         ASSERT_GT(fd, 2);
         output_stream = new google::protobuf::io::FileOutputStream(fd);
     }
@@ -52,7 +52,7 @@ TEST_F(DelimitedTest, Read)
     ASSERT_TRUE(write_delimited_to(hello, output_stream));
     ASSERT_TRUE(output_stream->Close());
 
-    int fd = open("example.es", O_RDONLY);
+    int const fd = open("example.es", O_RDONLY);
     google::protobuf::io::FileInputStream* input_stream;
     input_stream = new google::protobuf::io::FileInputStream(fd);
 

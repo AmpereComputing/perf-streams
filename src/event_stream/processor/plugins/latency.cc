@@ -360,7 +360,7 @@ void Latency::assign_latency_metrics(MetricSeries& metrics,
     metrics[count_metric] = info.count;
     metrics[stdev_metric] = hist_info.stdev;
 
-    if (hist_info.max_N_latencies.size() > 0) {
+    if (!hist_info.max_N_latencies.empty()) {
         metrics[max_latency_metric] = hist_info.max_N_latencies.front();
         metrics[min_latency_metric] = hist_info.min_latency;
 

@@ -18,10 +18,6 @@
 #include <gtest/gtest.h>
 
 using ::testing::_;
-using ::testing::AtLeast;
-using ::testing::DoDefault;
-using ::testing::EndsWith;
-using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
 
 using namespace perf_streams::event_stream;
@@ -56,13 +52,13 @@ struct EventDefinitionTest : public ::testing::Test
 TEST_F(EventDefinitionTest, CreatesEventDefinition)
 {
     EXPECT_CALL(*event_stream, finalize_event_definition(_, "event", "an event"));
-    EventDefinitionExample event(*event_stream, "event");
+    EventDefinitionExample const event(*event_stream, "event");
 }
 
 TEST_F(EventDefinitionTest, CreatesDataDefinition)
 {
     EXPECT_CALL(*event_stream, finalize_data_definition(_, "data", "some data"));
-    EventDataDefinitionExample<int> data(*event_stream, "data");
+    EventDataDefinitionExample<int> const data(*event_stream, "data");
 }
 
 TEST_F(EventDefinitionTest, CreatesEnumDefinition)
@@ -75,7 +71,7 @@ TEST_F(EventDefinitionTest, CreatesEnumDefinition)
                                              {1, "B"},
                                              {2, "C"},
                                          })));
-    EventDataDefinitionExample<EnumForData> data(*event_stream, "data");
+    EventDataDefinitionExample<EnumForData> const data(*event_stream, "data");
 }
 
 TEST_F(EventTest, RecordEventAtTime)
@@ -89,7 +85,7 @@ struct EventTestWithData : public EventTestWithDataBase<T>
 {
     void SetUp() override
     {
-        this->event_stream->reset();
+        (*this->event_stream).reset();
         EXPECT_CALL(*this->event_announcer, post_event("start_transaction", _)).WillRepeatedly(Return());
         EXPECT_CALL(*this->event_announcer, post_event("end_transaction", _)).WillRepeatedly(Return());
         this->events = std::make_unique<typename EventTestWithDataBase<T>::EventExample>(*this->event_stream);

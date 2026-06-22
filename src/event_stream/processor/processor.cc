@@ -49,7 +49,7 @@ class CounterSpec
 public:
     CounterSpec(std::string s)
     {
-        if (size_t eq_pos = s.find('='); eq_pos != std::string::npos) {
+        if (size_t const eq_pos = s.find('='); eq_pos != std::string::npos) {
             trip = std::stol(s.substr(eq_pos + 1));
             s = s.substr(0, eq_pos);
         }
@@ -84,7 +84,7 @@ public:
             if (auto [event_name, factor_bounds] = FactorBounds::from_event_spec(s); factor_bounds) {
                 name = event_name;
                 bounds = std::move(factor_bounds);
-            } else if (size_t pos = s.find(':'); pos != std::string::npos) {
+            } else if (size_t const pos = s.find(':'); pos != std::string::npos) {
                 name = s.substr(0, pos);
                 value = s.substr(pos + 1);
             } else {
@@ -550,7 +550,7 @@ void Processor::collect(uint64_t trigger_time)
         throw std::runtime_error{"collection trigger time is outside of allowed window"};
 
     MetricSeries series;
-    uint64_t ttime = trigger_time > previous_time ? trigger_time - 1 : trigger_time;
+    uint64_t const ttime = trigger_time > previous_time ? trigger_time - 1 : trigger_time;
 
     for (auto& pp : plugins)
         pp->collect(series, ttime);
@@ -616,7 +616,7 @@ void Processor::count(Plugin* plugin, const std::string& counter_spec, CounterSe
  */
 void Processor::on(Plugin* plugin, const std::string& trigger, Action action, CounterSet* counter_set)
 {
-    if (trigger.find('=') == std::string::npos)
+    if (!trigger.contains('='))
         on_every(plugin, trigger, action, counter_set);
     else
         build_counters(trigger, action, counter_set);
@@ -642,7 +642,7 @@ void Processor::on_every(Plugin* plugin, const std::string& trigger, Action acti
         spec.trip = 1;
     }
 
-    Action do_action_and_retrigger = [action, trip_count](Counter* counter, const Event& event) {
+    Action const do_action_and_retrigger = [action, trip_count](Counter* counter, const Event& event) {
         action(counter, event);
         counter->set_trip(counter->get_trip() + trip_count);
     };
@@ -716,7 +716,7 @@ void Processor::build_counter(int event_definition_id,
                               CountAction count_action,
                               CounterSet* counter_set)
 {
-    int id = build_counter(event_definition_id, event_name, spec, action, count_action);
+    int const id = build_counter(event_definition_id, event_name, spec, action, count_action);
     if (counter_set) {
         if (count_action == CountAction::ADD)
             counter_set->insert(id);
@@ -773,7 +773,7 @@ int Processor::build_counter(int event_definition_id,
 void Processor::add_factors(Counter& counter, const std::string& event_name, const CounterSpec& spec) const
 {
     for (const auto& factor : spec.factors) {
-        size_t last_dot = event_name.rfind('.');
+        size_t const last_dot = event_name.rfind('.');
 
         if (last_dot != std::string::npos) {
             auto scoped_name = fmt::format("{}.{}", event_name.substr(0, last_dot), factor.name);
@@ -810,7 +810,7 @@ std::pair<int, Counter*> Processor::add_counter(Counter counter)
         return {std::distance(counters.begin(), existing), &**existing};
     }
 
-    int counter_id = static_cast<int>(counters.size());
+    int const counter_id = static_cast<int>(counters.size());
     auto* new_counter = &*counters.emplace_back(std::move(counter));
     auto& e = events[new_counter->event_definition_id];
     e.state = EventState::ENABLED;

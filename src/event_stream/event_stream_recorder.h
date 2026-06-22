@@ -58,7 +58,7 @@ private:
     std::unordered_set<std::string> events_to_listen;
     std::unordered_set<EventType> listened_events;
 
-    bool listening(EventType event) const { return listened_events.find(event) != listened_events.end(); }
+    bool listening(EventType event) const { return listened_events.contains(event); }
     void record_event(const RecorderEventHandle& event);
 
 public:

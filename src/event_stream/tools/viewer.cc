@@ -32,20 +32,20 @@ int main(int argc, char** argv)
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
 
-    opt_hex = vm.count("hex");
-    opt_show_enums = vm.count("show-enums");
+    opt_hex = vm.contains("hex");
+    opt_show_enums = vm.contains("show-enums");
 
-    if (1 == argc || vm.count("help")) {
+    if (1 == argc || vm.contains("help")) {
         std::cerr << desc << "\n";
-        std::cerr << "Usage: " << std::endl;
-        std::cerr << "  " << argv[0] << " [opts] [path to stream file]" << std::endl;
+        std::cerr << "Usage: " << '\n';
+        std::cerr << "  " << argv[0] << " [opts] [path to stream file]" << '\n';
         return 1;
     }
 
     perf_streams::event_stream::EventStreamReader es_reader(argv[argc - 1]);
     perf_streams::event_stream_proto::Record record;
 
-    std::cout << "version=" << es_reader.version() << std::endl;
+    std::cout << "version=" << es_reader.version() << '\n';
 
     while (true) {
         // start to read through the file
@@ -62,7 +62,7 @@ int main(int argc, char** argv)
             if (opt_show_enums && definition.has_enumeration_id())
                 std::cout << " enumeration=" << definition.enumeration_id();
 
-            std::cout << std::endl;
+            std::cout << '\n';
         } else if (record.has_enumeration()) {
             const auto& enumeration = record.enumeration();
             if (opt_show_enums) {
@@ -71,7 +71,7 @@ int main(int argc, char** argv)
 
                 for (const auto& [id, name] : enumeration.values())
                     std::cout << " " << name << "=" << id;
-                std::cout << std::endl;
+                std::cout << '\n';
             }
         } else if (record.has_parameter()) {
             const auto& parameter = record.parameter();
@@ -105,7 +105,7 @@ int main(int argc, char** argv)
                 std::cout << "<VALUE_NOT_SET>";
                 break;
             }
-            std::cout << std::endl;
+            std::cout << '\n';
         } else if (record.has_event()) {
             const auto& event = record.event();
             std::cout << "event" << std::dec << " time=" << event.time()
@@ -147,9 +147,9 @@ int main(int argc, char** argv)
                     break;
                 }
             }
-            std::cout << std::endl;
+            std::cout << '\n';
         } else if (record.has_control()) {
-            std::cout << "control type=" << CtrlType_Name(record.control().type()) << std::endl;
+            std::cout << "control type=" << CtrlType_Name(record.control().type()) << '\n';
         }
         record.Clear();
     }

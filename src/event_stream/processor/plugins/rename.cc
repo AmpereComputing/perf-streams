@@ -93,7 +93,7 @@ void Rename::help(int argc, const char** argv)
 
 void Rename::add_rename(const std::string& arg, unsigned type)
 {
-    size_t pos = arg.find('=');
+    size_t const pos = arg.find('=');
 
     if (pos == std::string::npos)
         throw std::runtime_error{"argument to rename must be <pattern>=<replacement>"};

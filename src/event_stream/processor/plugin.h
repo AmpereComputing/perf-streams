@@ -124,7 +124,7 @@ protected:
     template<typename T>
     void on_every(const std::string& trigger, void (T::*action)(Counter*, const event_stream_proto::Event&))
     {
-        Action bound_action = std::bind_front(action, static_cast<T*>(this));
+        Action const bound_action = std::bind_front(action, static_cast<T*>(this));
         proc_ifc.on(this, trigger, bound_action);
     }
 
@@ -138,7 +138,7 @@ protected:
     template<typename T>
     void at_every(const std::string& trigger, void (T::*action)(uint64_t current_time, uint64_t expiry))
     {
-        TimeAction bound_action = std::bind_front(action, static_cast<T*>(this));
+        TimeAction const bound_action = std::bind_front(action, static_cast<T*>(this));
         proc_ifc.at_every(this, trigger, bound_action);
     }
 

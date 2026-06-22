@@ -62,7 +62,7 @@ TEST_F(BranchStreamWriterTest, Uncompressed)
         ASSERT_TRUE(writer->write(branch));
     }
 
-    int fd = open(this->test_file_name("bs").string().c_str(), O_RDONLY);
+    int const fd = open(this->test_file_name("bs").string().c_str(), O_RDONLY);
     ASSERT_GT(fd, 2);
 
     {

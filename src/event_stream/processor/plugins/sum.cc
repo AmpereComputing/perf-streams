@@ -53,7 +53,7 @@ Sum::Sum(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
         std::string arg;
 
         if (args.pop(arg)) {
-            size_t pos = arg.find('=');
+            size_t const pos = arg.find('=');
 
             if (pos == std::string::npos)
                 throw std::runtime_error{"argument to sum must be <regex>=<new name>"};

@@ -157,7 +157,7 @@ using PluginsWithArgs = std::list<PluginWithArgs>;
 std::tuple<Args, PluginsWithArgs> partition_args(int argc, const char** argv)
 {
     std::list<std::string> args(&argv[1], &argv[argc]);
-    std::list<fs::path> config_search_paths = {get_config_path()};
+    std::list<fs::path> const config_search_paths = {get_config_path()};
     expand_file_args(args, config_search_paths, ".");
 
     Args prog_args;
@@ -270,7 +270,7 @@ void dump(const Args& args, const PluginsWithArgs& plugins)
         std::cout << "\n\n";
     }
 
-    std::cout << std::endl;
+    std::cout << '\n';
 
     exit(EXIT_FAILURE);
 }
@@ -317,7 +317,7 @@ Available Plugins:
     fmt::print(usage, prog);
     for (const auto& [name, plugin_def] : registered_plugins())
         fmt::print("    {:<12} {:<12} {}\n", name, plugin_def.category(), plugin_def.description);
-    std::cout << std::endl;
+    std::cout << '\n';
 
     exit(EXIT_FAILURE);
 }
@@ -347,7 +347,7 @@ int main(int argc, const char** argv)
         set_config_path();
         auto [args, plugins] = partition_args(argc, argv);
 
-        CFile input;
+        CFile const input;
         int in_fd{0}, out_fd{0};
         std::string arg;
         std::string input_es;
@@ -381,7 +381,7 @@ int main(int argc, const char** argv)
             } else if (args.pop("--help") || args.pop("-h")) {
                 help(std::filesystem::path(argv[0]).filename().c_str());
             } else if (args.pop("-s", var_setting)) {
-                size_t pos = var_setting.find('=');
+                size_t const pos = var_setting.find('=');
                 if (pos == std::string::npos)
                     throw std::runtime_error(
                         fmt::format("variable setting should be <name>=<value> (got \"{}\")", var_setting));
@@ -412,7 +412,7 @@ int main(int argc, const char** argv)
                 if (skip_time == 0)
                     start.clear();
             } else {
-                Action stop_skip = [&](Counter* counter, const Event& event) {
+                Action const stop_skip = [&](Counter* counter, const Event& event) {
                     processor->stop_skipping();
                 };
                 processor->on(nullptr, start, stop_skip, &skip_counters);
@@ -433,12 +433,12 @@ int main(int argc, const char** argv)
 
         if (!interval.empty()) {
             if (is_time_spec(interval)) {
-                TimeAction collect = [&](uint64_t current_time, uint64_t expiry) {
+                TimeAction const collect = [&](uint64_t current_time, uint64_t expiry) {
                     processor->collect(expiry);
                 };
                 processor->at_every(nullptr, interval, collect);
             } else {
-                Action collect = [&](Counter* counter, const Event& event) {
+                Action const collect = [&](Counter* counter, const Event& event) {
                     processor->collect();
                 };
                 processor->on_every(nullptr, interval, collect);

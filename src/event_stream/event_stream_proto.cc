@@ -235,9 +235,9 @@ void EventStreamProto::start_simulation()
         for (uint32_t i = 0; i < num_events; i++) {
             reader->read(response);
 
-            int id = response.definition().id();
+            int const id = response.definition().id();
             if (auto* event = Definitions::instance().get_mutable_event(id); event) {
-                bool enabled = response.definition().enable();
+                bool const enabled = response.definition().enable();
                 if (enabled)
                     event->enable();
                 else
@@ -307,13 +307,13 @@ void EventStreamProto::write(event_stream_proto::Enumeration& enumeration)
 
 void EventStreamProto::write(event_stream_proto::Record& record)
 {
-    std::unique_lock<std::mutex> lock{output_mtx};
+    std::unique_lock<std::mutex> const lock{output_mtx};
     writer->write(record);
 }
 
 void EventStreamProto::write_read(event_stream_proto::Record& record, event_stream_proto::Response& response)
 {
-    std::unique_lock<std::mutex> lock{output_mtx};
+    std::unique_lock<std::mutex> const lock{output_mtx};
     writer->write(record);
     writer->flush();
     if (reader)

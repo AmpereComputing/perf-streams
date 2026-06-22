@@ -33,7 +33,7 @@ class InstructionStreamReader : public protobuf_utils::ProtobufStreamReader
 {
 public:
     InstructionStreamReader(std::filesystem::path filepath);
-    const Features features() { return stream_features; }
+    Features features() { return stream_features; }
     bool read(Instruction& instruction);
     bool read(Event& event) { return ProtobufStreamReader::read(event); }
 

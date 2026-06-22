@@ -33,7 +33,7 @@ TEST_F(EventStreamReaderTest, TestMissingFile)
 TEST_F(EventStreamReaderTest, TestFileDescriptorConstructor)
 {
     auto filename = build_es("four_events_with_data.in");
-    int fd = open(filename.c_str(), O_RDONLY);
+    int const fd = open(filename.c_str(), O_RDONLY);
     ASSERT_GT(fd, 2);
     EventStreamReader reader(fd);
     reader.include("foo");

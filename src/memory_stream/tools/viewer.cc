@@ -67,7 +67,7 @@ void access_process(Access& access)
     std::cout << "size: " << std::dec << access.size() << " ";
     std::cout << "offset: " << std::dec << access.offset() << " ";
     std::cout << "originator id: " << std::dec << access.originator_id() << " ";
-    std::cout << "program counter: 0x" << std::hex << access.program_counter() << " " << std::endl;
+    std::cout << "program counter: 0x" << std::hex << access.program_counter() << " " << '\n';
 
     unique_lines.insert(access.physical_address());
 
@@ -78,7 +78,7 @@ void access_process(Access& access)
 int main(int argc, char** argv)
 {
     if (argc < 2) {
-        std::cout << "memory_stream_viewer [memory stream]" << std::endl;
+        std::cout << "memory_stream_viewer [memory stream]" << '\n';
         exit(EXIT_FAILURE);
     }
 
@@ -88,7 +88,7 @@ int main(int argc, char** argv)
 
     bool parsing{true};
 
-    std::cout << "Memory stream is version " << reader.version() << "\n" << std::endl;
+    std::cout << "Memory stream is version " << reader.version() << "\n" << '\n';
 
     while (parsing) {
         switch (reader.version()) {
@@ -128,7 +128,7 @@ int main(int argc, char** argv)
                         std::cout << "UNKNOWN";
                         break;
                     }
-                    std::cout << std::endl;
+                    std::cout << '\n';
                 }
 
                 event.Clear();
@@ -140,27 +140,26 @@ int main(int argc, char** argv)
         }
     }
 
-    std::cout << std::dec << std::endl;
+    std::cout << std::dec << '\n';
     if (reader.filter_was_unified()) {
-        std::cout << "Note: Accesses filtered through unified " << reader.filter_dcache_size() << "-byte cache"
-                  << std::endl
-                  << std::endl;
+        std::cout << "Note: Accesses filtered through unified " << reader.filter_dcache_size() << "-byte cache" << '\n'
+                  << '\n';
     } else {
         std::cout << "Note: Accesses filtered through split " << reader.filter_dcache_size() << "-byte dcache and "
-                  << reader.filter_icache_size() << "-byte icache." << std::endl
-                  << std::endl;
+                  << reader.filter_icache_size() << "-byte icache." << '\n'
+                  << '\n';
     }
-    std::cout << "total access count = " << access_count << std::endl;
-    std::cout << "data count = " << data_count << std::endl;
-    std::cout << "code count = " << inst_count << std::endl;
-    std::cout << "read count = " << read_count << std::endl;
-    std::cout << "write count = " << write_count << std::endl;
-    std::cout << "readunique count = " << readunique_count << std::endl;
-    std::cout << "total bytes count = " << bytes_count << std::endl;
-    std::cout << "bytes read count = " << bytes_read_count << std::endl;
-    std::cout << "bytes write count = " << bytes_write_count << std::endl;
-    std::cout << "bytes readunique count = " << bytes_readunique_count << std::endl;
-    std::cout << "unique lines = " << unique_lines.size() << std::endl;
+    std::cout << "total access count = " << access_count << '\n';
+    std::cout << "data count = " << data_count << '\n';
+    std::cout << "code count = " << inst_count << '\n';
+    std::cout << "read count = " << read_count << '\n';
+    std::cout << "write count = " << write_count << '\n';
+    std::cout << "readunique count = " << readunique_count << '\n';
+    std::cout << "total bytes count = " << bytes_count << '\n';
+    std::cout << "bytes read count = " << bytes_read_count << '\n';
+    std::cout << "bytes write count = " << bytes_write_count << '\n';
+    std::cout << "bytes readunique count = " << bytes_readunique_count << '\n';
+    std::cout << "unique lines = " << unique_lines.size() << '\n';
 
     exit(EXIT_SUCCESS);
 }

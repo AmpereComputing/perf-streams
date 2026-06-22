@@ -54,7 +54,7 @@ protected:
 
     static std::string read_and_remove_file(const std::string& filename)
     {
-        std::ifstream inf{filename};
+        std::ifstream const inf{filename};
         std::stringstream ss;
         ss << inf.rdbuf();
 

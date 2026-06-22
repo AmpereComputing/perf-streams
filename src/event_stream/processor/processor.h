@@ -101,12 +101,12 @@ public:
     void at_or_on(Plugin* plugin, const std::string& trigger, P trip, CounterSet* counter_set = nullptr)
     {
         if (is_time_spec(trigger)) {
-            TimeAction time_action = [=](uint64_t current_time, uint64_t expiry) {
+            TimeAction const time_action = [=](uint64_t current_time, uint64_t expiry) {
                 trip();
             };
             at(plugin, trigger, time_action);
         } else {
-            Action action = [=](Counter* counter, const Event& event) {
+            Action const action = [=](Counter* counter, const Event& event) {
                 trip();
             };
             on(plugin, trigger, action, counter_set);

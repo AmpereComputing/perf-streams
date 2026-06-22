@@ -100,7 +100,7 @@ InstructionStreamWriter::~InstructionStreamWriter()
     // to an exception, we want to print out a warning.
 
     if (!std::uncaught_exceptions() && !finalize_called) {
-        std::cerr << "ERROR: InstructionStreamWriter not finalized" << std::endl;
+        std::cerr << "ERROR: InstructionStreamWriter not finalized" << '\n';
     }
 }
 

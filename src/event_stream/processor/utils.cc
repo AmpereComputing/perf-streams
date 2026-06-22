@@ -41,7 +41,7 @@ void replace_all(std::string& s, const std::string& search, const std::string& r
 std::string get_prog_absolute_path()
 {
     char result[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+    ssize_t const count = readlink("/proc/self/exe", result, PATH_MAX);
 
     if (count != -1) {
         result[count] = '\0';
@@ -62,7 +62,7 @@ std::string get_prog_absolute_path()
  */
 void set_config_path()
 {
-    fs::path absprog = get_prog_absolute_path();
+    fs::path const absprog = get_prog_absolute_path();
     auto install_path = absprog.parent_path().parent_path();
 
     if (auto* python_path_env = getenv("EVP_PYTHON_PATH"); python_path_env)

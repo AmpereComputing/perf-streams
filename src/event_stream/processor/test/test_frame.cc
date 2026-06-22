@@ -11,7 +11,7 @@ using namespace perf_streams::event_stream::processor;
 
 TEST(TestFrame, CanCreateEmptyFrameOfInts)
 {
-    Frame<int> frame;
+    Frame<int> const frame;
 }
 
 TEST(TestFrame, CanAddSeries)
@@ -89,7 +89,7 @@ TEST(TestFrame, CanIterateOverRow)
     Frame<int> frame{{"one", {1, 2, 3}}, {"two", {4, 5, 6}}, {"three", {7, 8, 9}}};
 
     // Note that columns are kept sorted (in this case, alphabetically).
-    int row_expected[3][3] = {{1, 7, 4}, {2, 8, 5}, {3, 9, 6}};
+    int const row_expected[3][3] = {{1, 7, 4}, {2, 8, 5}, {3, 9, 6}};
 
     for (size_t row = 0; row < 3; ++row) {
         size_t col = 0;
@@ -104,7 +104,7 @@ TEST(TestFrame, CanIterateOverConstRow)
     const Frame<int> frame{{"one", {1, 2, 3}}, {"two", {4, 5, 6}}, {"three", {7, 8, 9}}};
 
     // Note that columns are kept sorted (in this case, alphabetically).
-    int row_expected[3][3] = {{1, 7, 4}, {2, 8, 5}, {3, 9, 6}};
+    int const row_expected[3][3] = {{1, 7, 4}, {2, 8, 5}, {3, 9, 6}};
 
     for (size_t row = 0; row < 3; ++row) {
         size_t col = 0;

@@ -54,7 +54,7 @@ TEST_F(InstructionStreamWriterTest, Uncompressed)
 
     delete writer;
 
-    int fd = open(this->test_file_name("is").string().c_str(), O_RDONLY);
+    int const fd = open(this->test_file_name("is").string().c_str(), O_RDONLY);
     ASSERT_GT(fd, 2);
 
     google::protobuf::io::FileInputStream* input_stream;
@@ -165,7 +165,7 @@ TEST_F(InstructionStreamWriterTest, Compressed)
 
 TEST_F(InstructionStreamWriterTest, testInvalidControlOrdering)
 {
-    instruction_stream::Features features;
+    instruction_stream::Features const features;
     auto* writer =
         new instruction_stream::InstructionStreamWriter(this->test_file_name("is").string().c_str(), features);
     EXPECT_THROW(writer->finalize(), std::runtime_error);

@@ -21,7 +21,7 @@ namespace perf_streams::testing {
 
 inline std::list<std::string> file_to_list(std::istream& in)
 {
-    static std::regex ws{"^[ \t]*"};
+    static std::regex const ws{"^[ \t]*"};
 
     std::list<std::string> contents;
     std::string line;
