@@ -134,7 +134,13 @@ clang-tidy: .require-clean
 
 .PHONY: clang-tidy-check
 clang-tidy-check:
-	$(MAKE) .clang-tidy
+	! $(MAKE) .clang-tidy CLANG_TIDY_ARGS="-hide-progress" \
+		| grep --line-buffered -v 'Enabled checks' \
+		| grep --line-buffered -ve '^    [a-z-]\+$$' \
+		| grep --line-buffered -v '^$$' \
+		| grep --line-buffered -v "warnings generated." \
+		| grep --line-buffered -v "Suppressed" \
+		| grep --line-buffered -v "errors from all non-system headers"
 
 .PHONY: .python-format
 .python-format:
@@ -164,12 +170,14 @@ python-lint-check:
 
 .PHONY: lint
 lint: .require-clean
+	$(MAKE) .clang-tidy CLANG_TIDY_ARGS="-fix -format"
 	$(MAKE) .clang-format
 	$(MAKE) .python-lint
 	$(MAKE) .python-format
 
 .PHONY: check
 check:
+	$(MAKE) clang-tidy-check
 	$(MAKE) clang-format-check
 	$(MAKE) python-lint-check
 	$(MAKE) python-format-check
