@@ -143,6 +143,14 @@ TEST_F(EventStreamMCPTest, CountParamsAndSample)
     ASSERT_EQ(sample.events.size(), 1);
     EXPECT_EQ(sample.events.front().name, "two");
     EXPECT_TRUE(sample.truncated);
+
+    mcp::SampleOptions filtered_sample_options;
+    filtered_sample_options.data_filters = {"data1=21"};
+    auto filtered_sample = mcp::sample(path, filtered_sample_options);
+    ASSERT_EQ(filtered_sample.events.size(), 1);
+    EXPECT_EQ(filtered_sample.events.front().name, "two");
+    EXPECT_EQ(filtered_sample.events.front().time, 300);
+    EXPECT_FALSE(filtered_sample.truncated);
 }
 
 TEST_F(EventStreamMCPTest, CountExpandsEnumerations)

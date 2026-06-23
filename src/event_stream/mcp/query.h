@@ -178,6 +178,7 @@ struct ParamsResult
 struct SampleOptions
 {
     std::vector<std::string> events;
+    std::vector<std::string> data_filters;
     std::optional<uint64_t> start;
     std::optional<uint64_t> stop;
     uint64_t limit{100};

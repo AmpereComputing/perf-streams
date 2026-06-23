@@ -110,6 +110,12 @@ struct EventSelector
     std::vector<FactorSpec> factors;
 };
 
+struct DataFilter
+{
+    std::string name;
+    std::string value;
+};
+
 size_t string_memory_bytes(const std::string& value)
 {
     return value.capacity() + 1;
@@ -424,6 +430,23 @@ std::vector<EventSelector> parse_selectors(const std::vector<std::string>& specs
     return selectors;
 }
 
+DataFilter parse_data_filter(const std::string& spec)
+{
+    auto eq = spec.find('=');
+    if (eq == std::string::npos || eq == 0)
+        throw std::runtime_error{fmt::format("invalid data filter (\"{}\") should be <data name>=<value>", spec)};
+    return {spec.substr(0, eq), spec.substr(eq + 1)};
+}
+
+std::vector<DataFilter> parse_data_filters(const std::vector<std::string>& specs)
+{
+    std::vector<DataFilter> filters;
+    filters.reserve(specs.size());
+    for (const auto& spec : specs)
+        filters.push_back(parse_data_filter(spec));
+    return filters;
+}
+
 const DefinitionInfo& event_definition(const StreamCache& stream, const EventRow& event)
 {
     return stream.definitions.at(event.definition_id);
@@ -436,6 +459,22 @@ bool in_time_range(const EventRow& event, std::optional<uint64_t> start, std::op
     if (stop && event.time >= *stop)
         return false;
     return true;
+}
+
+bool value_matches_filter(const EventValue& value, const DataFilter& filter)
+{
+    if (value.name != filter.name)
+        return false;
+    return value.value.string_value() == filter.value || (value.expanded && *value.expanded == filter.value);
+}
+
+bool event_matches_filters(const EventRow& event, const std::vector<DataFilter>& filters)
+{
+    if (filters.empty())
+        return true;
+    return std::ranges::any_of(event.values, [&](const auto& value) {
+        return std::ranges::any_of(filters, [&](const auto& filter) { return value_matches_filter(value, filter); });
+    });
 }
 
 bool excluded(const StreamCache& stream, const EventRow& event, const std::vector<EventSelector>& exclude)
@@ -991,6 +1030,7 @@ SampleResult sample(const fs::path& path, const SampleOptions& options)
 {
     const auto& stream = get_stream(path);
     auto selectors = parse_selectors(effective_events(options.events));
+    auto data_filters = parse_data_filters(options.data_filters);
 
     SampleResult result;
     for (const auto& event : stream.events) {
@@ -1000,6 +1040,8 @@ SampleResult sample(const fs::path& path, const SampleOptions& options)
         const auto& event_name = event_definition(stream, event).name;
         if (!std::ranges::any_of(selectors,
                                  [&](const auto& selector) { return name_matches(selector.event, event_name); }))
+            continue;
+        if (!event_matches_filters(event, data_filters))
             continue;
 
         EventSample row;

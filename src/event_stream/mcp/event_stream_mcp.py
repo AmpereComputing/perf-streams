@@ -124,20 +124,22 @@ def params(
     )
 
 
-def sample(
+def sample(  # noqa: PLR0913
     path: str,
     events: list[str] | str | None = None,
     start: int | str | None = None,
     stop: int | str | None = None,
     limit: int = 100,
+    data_filter: list[str] | str | None = None,
 ) -> dict[str, Any]:
-    """Return a bounded structured sample of events."""
+    """Return a bounded structured sample of events, optionally filtered by <data_name>=<data_value>."""
     return _event_stream_mcp.sample(
         path,
         events=events,
         start=start,
         stop=stop,
         limit=limit,
+        data_filter=data_filter,
     )
 
 

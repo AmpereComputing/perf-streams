@@ -291,14 +291,19 @@ py::dict py_params(const std::string& path,
     return dict;
 }
 
-py::dict py_sample(
-    const std::string& path, const py::object& events, const py::object& start, const py::object& stop, uint64_t limit)
+py::dict py_sample(const std::string& path,
+                   const py::object& events,
+                   const py::object& start,
+                   const py::object& stop,
+                   uint64_t limit,
+                   const py::object& data_filter)
 {
     mcp::SampleOptions options;
     options.events = py_strings(events);
     options.start = py_time(start);
     options.stop = py_time(stop);
     options.limit = limit;
+    options.data_filters = py_strings(data_filter);
 
     auto result = mcp::sample(path, options);
 
@@ -381,6 +386,7 @@ PYBIND11_MODULE(_event_stream_mcp, module)
                py::arg("start") = py::none(),
                py::arg("stop") = py::none(),
                py::arg("limit") = 100,
+               py::arg("data_filter") = py::none(),
                "Sample event stream events.");
     module.def("cache",
                &py_cache,

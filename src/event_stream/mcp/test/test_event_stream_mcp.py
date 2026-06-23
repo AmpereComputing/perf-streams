@@ -96,6 +96,11 @@ class TestEventStreamMCPTools(unittest.TestCase):
         self.assertEqual(sampled["events"][0]["name"], "one")
         self.assertTrue(sampled["truncated"])
 
+        filtered = event_stream_mcp.sample(self.path, events="one", data_filter="state=HIT")
+        self.assertEqual(len(filtered["events"]), 1)
+        self.assertEqual(filtered["events"][0]["time"], 30)
+        self.assertFalse(filtered["truncated"])
+
         stats = event_stream_mcp.cache("stats")
         self.assertEqual(stats["streams"], 1)
 
