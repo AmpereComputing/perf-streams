@@ -310,7 +310,7 @@ StreamCache load_stream(const FileIdentity& identity, size_t memory_budget_bytes
             row.time = event.time();
 
             auto event_def = stream.definitions.find(row.definition_id);
-            std::string event_name =
+            std::string const event_name =
                 event_def == stream.definitions.end() ? fmt::format("#{}", row.definition_id) : event_def->second.name;
 
             for (const auto& value : event.values()) {
@@ -417,6 +417,7 @@ EventSelector parse_selector(const std::string& spec)
 std::vector<EventSelector> parse_selectors(const std::vector<std::string>& specs)
 {
     std::vector<EventSelector> selectors;
+    selectors.reserve(specs.size());
     for (const auto& spec : specs)
         selectors.push_back(parse_selector(spec));
     return selectors;
@@ -787,8 +788,8 @@ CountResult count(const fs::path& path, const CountOptions& options)
     result.summary = metric_map_to_vector(summary);
 
     if (options.interval) {
-        uint64_t first = options.start.value_or(stream.first_time.value_or(0));
-        uint64_t last = options.stop.value_or(stream.last_time.value_or(first));
+        uint64_t const first = options.start.value_or(stream.first_time.value_or(0));
+        uint64_t const last = options.stop.value_or(stream.last_time.value_or(first));
         for (uint64_t bucket = first; bucket <= last; bucket += *options.interval) {
             auto stop = bucket + *options.interval;
             std::map<std::string, double> bucket_metrics;
@@ -834,7 +835,7 @@ LatencyResult latency(const fs::path& path, const LatencyOptions& options)
             throw std::runtime_error{fmt::format("no definition for event \"{}\"", event)};
     }
 
-    bool tracking_transactions = !options.key;
+    bool const tracking_transactions = !options.key;
     std::set<std::string> key_names;
     if (options.key)
         key_names.insert(options.prefix ? fmt::format("{}.{}", *options.prefix, *options.key) : *options.key);

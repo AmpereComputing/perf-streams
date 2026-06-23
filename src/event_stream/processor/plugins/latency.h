@@ -74,7 +74,7 @@ inline std::string build_latency_name(const std::vector<std::string>& events)
             if (event_prefix == prefix) {
                 name << event_name;
             } else {
-                std::replace(event.begin(), event.end(), '.', '_');
+                std::ranges::replace(event, '.', '_');
                 name << event;
             }
         } else {

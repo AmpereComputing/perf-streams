@@ -32,7 +32,7 @@ struct Scalar
     };
 
     Kind kind{Kind::NONE};
-    std::variant<std::monostate, bool, int64_t, uint64_t, double, std::string> value{};
+    std::variant<std::monostate, bool, int64_t, uint64_t, double, std::string> value;
 
     static Scalar boolean(bool value);
     static Scalar integer(int64_t value);
