@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <pybind11/pybind11.h>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -40,12 +41,27 @@ py::object py_scalar_value(const mcp::Scalar& scalar)
     return py::none();
 }
 
-py::dict py_metric(const mcp::Metric& metric)
+void add_metric(py::dict& dict, std::set<std::string>& names, const std::string& name, const mcp::Scalar& value)
+{
+    if (!names.insert(name).second)
+        throw std::runtime_error{"duplicate MCP metric name: " + name};
+    dict[py::str(name)] = py_scalar_value(value);
+}
+
+void add_metrics(py::dict& dict,
+                 std::set<std::string>& names,
+                 const std::vector<mcp::Metric>& metrics,
+                 const std::string& prefix = "")
+{
+    for (const auto& metric : metrics)
+        add_metric(dict, names, prefix + metric.name, metric.value);
+}
+
+py::dict py_metrics(const std::vector<mcp::Metric>& metrics)
 {
     py::dict dict;
-    dict["name"] = metric.name;
-    dict["value"] = py_scalar_value(metric.value);
-    dict["value_type"] = metric.value.type_name();
+    std::set<std::string> names;
+    add_metrics(dict, names, metrics);
     return dict;
 }
 
@@ -112,15 +128,6 @@ py::dict py_event(const mcp::EventSample& event)
     dict["name"] = event.name;
     dict["time"] = event.time;
     dict["values"] = py_list(event.values, py_event_value);
-    return dict;
-}
-
-py::dict py_series_bucket(const mcp::SeriesBucket& bucket)
-{
-    py::dict dict;
-    dict["start"] = bucket.start;
-    dict["stop"] = bucket.stop;
-    dict["metrics"] = py_list(bucket.metrics, py_metric);
     return dict;
 }
 
@@ -220,8 +227,12 @@ py::dict py_count(const std::string& path,
     auto result = mcp::count(path, options);
 
     py::dict dict;
-    dict["summary"] = py_list(result.summary, py_metric);
-    dict["series"] = py_list(result.series, py_series_bucket);
+    std::set<std::string> names;
+    add_metrics(dict, names, result.summary);
+    for (const auto& bucket : result.series) {
+        auto prefix = "series." + std::to_string(bucket.start) + "." + std::to_string(bucket.stop) + ".";
+        add_metrics(dict, names, bucket.metrics, prefix);
+    }
     return dict;
 }
 
@@ -249,9 +260,7 @@ py::dict py_latency(const std::string& path,
 
     auto result = mcp::latency(path, options);
 
-    py::dict dict;
-    dict["summary"] = py_list(result.summary, py_metric);
-    return dict;
+    return py_metrics(result.summary);
 }
 
 py::dict py_rate(const std::string& path,
@@ -268,9 +277,7 @@ py::dict py_rate(const std::string& path,
 
     auto result = mcp::rate(path, options);
 
-    py::dict dict;
-    dict["summary"] = py_list(result.summary, py_metric);
-    return dict;
+    return py_metrics(result.summary);
 }
 
 py::dict py_params(const std::string& path, const py::object& params, bool all)
