@@ -55,6 +55,10 @@ build: build-$(DEFAULT_BUILD_TYPE)
 .PHONY: debug
 debug: build-debug
 
+.PHONY: clang
+clang: .force
+	CC=clang CXX=clang++ $(MAKE) build-$(DEFAULT_BUILD_TYPE)-clang
+
 install-%: .force
 	$(MAKE) build-$* TARGET=install
 
@@ -120,11 +124,10 @@ clang-format-check:
 	$(FIND_SRCS) $(CPP_FILES) | xargs $(CLANG_FORMAT) -n -Werror
 
 .PHONY: .clang-tidy
-.clang-tidy: configure
+.clang-tidy: clang
 	! $(CLANG_TIDY) -hide-progress -config-file .clang-tidy-required \
 		-source-filter "$(PROJECT_DIR)/src/.*.cc" \
 		-header-filter "$(PROJECT_DIR)/src/.*.h" \
-		-exclude-header-filter ".*/strnatcmp.h" \
 		-p $(BUILD_DIRECTORY) \
 		-j 0 $(CLANG_TIDY_ARGS) \
 		| grep --line-buffered -v 'Enabled checks' \
@@ -136,11 +139,11 @@ clang-format-check:
 
 .PHONY: clang-tidy
 clang-tidy: .require-clean
-	$(MAKE) .clang-tidy CLANG_TIDY_ARGS="-fix -format"
+	$(MAKE) .clang-tidy CLANG_TIDY_ARGS="-fix -format" BUILD_TYPE=$(DEFAULT_BUILD_TYPE)-clang
 
 .PHONY: clang-tidy-check
 clang-tidy-check:
-	$(MAKE) .clang-tidy
+	$(MAKE) .clang-tidy BUILD_TYPE=$(DEFAULT_BUILD_TYPE)-clang
 
 .PHONY: .python-format
 .python-format:
@@ -170,14 +173,12 @@ python-lint-check:
 
 .PHONY: lint
 lint: .require-clean
-	$(MAKE) .clang-tidy CLANG_TIDY_ARGS="-fix -format"
 	$(MAKE) .clang-format
 	$(MAKE) .python-lint
 	$(MAKE) .python-format
 
 .PHONY: check
 check:
-	$(MAKE) clang-tidy-check
 	$(MAKE) clang-format-check
 	$(MAKE) python-lint-check
 	$(MAKE) python-format-check
