@@ -590,7 +590,7 @@ std::vector<Metric> rate_for_event_interval(const StreamCache& stream, const Rat
     std::map<std::string, double> metrics;
     for (const auto& [name, rates] : histogram) {
         for (const auto& [rate, count] : rates) {
-            metrics[processor_plugins::histogram_metric_name(name, options.suffix, rate, false)] = count;
+            metrics[processor_plugins::histogram_metric_name(name, "rate", rate, false)] = count;
         }
     }
     return metric_map_to_vector(metrics);
@@ -629,7 +629,7 @@ std::vector<Metric> rate_for_time_interval(const StreamCache& stream, uint64_t i
     std::map<std::string, double> metrics;
     for (const auto& [name, rates] : histogram) {
         for (const auto& [rate, count] : rates) {
-            metrics[processor_plugins::histogram_metric_name(name, options.suffix, rate, false)] = count;
+            metrics[processor_plugins::histogram_metric_name(name, "rate", rate, false)] = count;
         }
     }
     return metric_map_to_vector(metrics);
@@ -879,17 +879,17 @@ LatencyResult latency(const fs::path& path, const LatencyOptions& options)
     std::vector<std::string> event_names;
     event_names.reserve(events.size());
     for (const auto& event : events)
-        event_names.push_back(options.prefix ? fmt::format("{}.{}", *options.prefix, event) : event);
+        event_names.push_back(event);
 
     for (const auto& event : event_names) {
-        if (!stream.event_ids_by_name.contains(event) && !options.ignore_missing)
+        if (!stream.event_ids_by_name.contains(event))
             throw std::runtime_error{fmt::format("no definition for event \"{}\"", event)};
     }
 
     bool const tracking_transactions = !options.key;
     std::set<std::string> key_names;
     if (options.key)
-        key_names.insert(options.prefix ? fmt::format("{}.{}", *options.prefix, *options.key) : *options.key);
+        key_names.insert(*options.key);
     else
         key_names.insert("txid");
 

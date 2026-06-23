@@ -81,14 +81,12 @@ def event_stream_count(  # noqa: PLR0913
     )
 
 
-def event_stream_latency(  # noqa: PLR0913
+def event_stream_latency(
     path: str,
     events: list[str],
     name: str | None = None,
     key: str | None = None,
-    prefix: str | None = None,
     histogram: str | None = None,
-    ignore_missing: bool = False,
 ) -> dict[str, Any]:
     """Measure latency between named events."""
     return _event_stream_mcp.latency(
@@ -96,9 +94,7 @@ def event_stream_latency(  # noqa: PLR0913
         events,
         name=name,
         key=key,
-        prefix=prefix,
         histogram=histogram,
-        ignore_missing=ignore_missing,
     )
 
 
@@ -106,10 +102,9 @@ def event_stream_rate(
     path: str,
     interval: str,
     events: list[str] | str,
-    suffix: str = "rate",
 ) -> dict[str, Any]:
     """Build a histogram of event counts per interval."""
-    return _event_stream_mcp.rate(path, interval, events, suffix=suffix)
+    return _event_stream_mcp.rate(path, interval, events)
 
 
 def event_stream_params(

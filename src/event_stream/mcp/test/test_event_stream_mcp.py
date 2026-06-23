@@ -1,6 +1,7 @@
 # Copyright (c) 2026, Ampere Computing LLC
 # SPDX-License-Identifier: BSD-3-Clause
 
+import inspect
 import os
 import unittest
 from tempfile import TemporaryDirectory
@@ -75,6 +76,14 @@ class TestEventStreamMCPTools(unittest.TestCase):
         self.assertEqual(rate["two.rate.0"], 1)
         self.assertEqual(rate["two.rate.1"], 1)
         self.assertNotIn("summary", rate)
+
+    def test_removed_tool_options_are_not_in_signatures(self):
+        latency_params = inspect.signature(event_stream_latency).parameters
+        self.assertNotIn("prefix", latency_params)
+        self.assertNotIn("ignore_missing", latency_params)
+
+        rate_params = inspect.signature(event_stream_rate).parameters
+        self.assertNotIn("suffix", rate_params)
 
     def test_params_sample_and_cache(self):
         params = event_stream_params(self.path, all=True)

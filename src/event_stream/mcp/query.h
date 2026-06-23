@@ -143,9 +143,7 @@ struct LatencyOptions
     std::vector<std::string> events;
     std::optional<std::string> name;
     std::optional<std::string> key;
-    std::optional<std::string> prefix;
     std::optional<std::string> histogram;
-    bool ignore_missing{false};
 };
 
 struct LatencyResult
@@ -157,7 +155,6 @@ struct RateOptions
 {
     std::string interval;
     std::vector<std::string> events;
-    std::string suffix{"rate"};
 };
 
 struct RateResult
