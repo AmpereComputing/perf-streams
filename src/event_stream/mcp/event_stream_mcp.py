@@ -115,9 +115,21 @@ def event_stream_rate(
     return _event_stream_mcp.rate(path, interval, events, suffix=suffix, factored=factored)
 
 
-def event_stream_params(path: str, params: list[str] | str | None = None, all: bool = False) -> dict[str, Any]:  # noqa: A002
-    """Return event stream parameters."""
-    return _event_stream_mcp.params(path, params=params, all=all)
+def event_stream_params(
+    path: str,
+    params: list[str] | str | None = None,
+    all: bool = False,  # noqa: A002
+    name_filter: str | None = None,
+    description_filter: str | None = None,
+) -> dict[str, Any]:
+    """Return event stream parameters, optionally filtering names or descriptions by partial, case-insensitive match."""
+    return _event_stream_mcp.params(
+        path,
+        params=params,
+        all=all,
+        name_filter=name_filter,
+        description_filter=description_filter,
+    )
 
 
 def event_stream_sample(  # noqa: PLR0913

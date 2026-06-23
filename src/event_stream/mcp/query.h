@@ -170,6 +170,8 @@ struct RateResult
 struct ParamsOptions
 {
     std::vector<std::string> params;
+    std::optional<std::string> name_filter;
+    std::optional<std::string> description_filter;
     bool all{false};
 };
 

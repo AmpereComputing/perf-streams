@@ -153,6 +153,13 @@ std::vector<std::string> py_strings(const py::object& obj)
     return values;
 }
 
+std::optional<std::string> py_optional_string(const py::object& obj)
+{
+    if (obj.is_none())
+        return {};
+    return py::cast<std::string>(obj);
+}
+
 std::optional<uint64_t> py_time(const py::object& obj)
 {
     if (obj.is_none())
@@ -173,10 +180,8 @@ py::dict py_inspect(const std::string& path,
     mcp::InspectOptions options;
     options.include_values = include_values;
     options.include_params = include_params;
-    if (!name_filter.is_none())
-        options.name_filter = py::cast<std::string>(name_filter);
-    if (!description_filter.is_none())
-        options.description_filter = py::cast<std::string>(description_filter);
+    options.name_filter = py_optional_string(name_filter);
+    options.description_filter = py_optional_string(description_filter);
 
     auto result = mcp::inspect(path, options);
 
@@ -280,11 +285,17 @@ py::dict py_rate(const std::string& path,
     return py_metrics(result.summary);
 }
 
-py::dict py_params(const std::string& path, const py::object& params, bool all)
+py::dict py_params(const std::string& path,
+                   const py::object& params,
+                   bool all,
+                   const py::object& name_filter,
+                   const py::object& description_filter)
 {
     mcp::ParamsOptions options;
     options.params = py_strings(params);
     options.all = all;
+    options.name_filter = py_optional_string(name_filter);
+    options.description_filter = py_optional_string(description_filter);
 
     auto result = mcp::params(path, options);
 
@@ -387,6 +398,8 @@ PYBIND11_MODULE(_event_stream_mcp, module)
                py::arg("path"),
                py::arg("params") = py::none(),
                py::arg("all") = false,
+               py::arg("name_filter") = py::none(),
+               py::arg("description_filter") = py::none(),
                "Read event stream parameters.");
     module.def("sample",
                &py_sample,

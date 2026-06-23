@@ -124,6 +124,18 @@ TEST_F(EventStreamMCPTest, CountParamsAndSample)
     params_options.all = true;
     EXPECT_EQ(mcp::params(path, params_options).parameters.size(), 3);
 
+    mcp::ParamsOptions params_name_options;
+    params_name_options.name_filter = "MACHINE";
+    auto params_name_result = mcp::params(path, params_name_options);
+    ASSERT_EQ(params_name_result.parameters.size(), 1);
+    EXPECT_EQ(params_name_result.parameters.front().name, "core.machine_width");
+
+    mcp::ParamsOptions params_description_options;
+    params_description_options.description_filter = "SCHEDULER";
+    auto params_description_result = mcp::params(path, params_description_options);
+    ASSERT_EQ(params_description_result.parameters.size(), 1);
+    EXPECT_EQ(params_description_result.parameters.front().name, "core.scheduler_configuration");
+
     mcp::SampleOptions sample_options;
     sample_options.events = {"two"};
     sample_options.limit = 1;

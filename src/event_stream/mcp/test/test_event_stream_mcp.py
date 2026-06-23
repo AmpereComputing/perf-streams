@@ -29,7 +29,8 @@ class TestEventStreamMCPTools(unittest.TestCase):
         txid = writer.define_data("txid", "Transaction ID")
         state_enum = writer.define_enumeration({1: "MISS", 2: "HIT"})
         state = writer.define_data("state", "State", enumeration=state_enum)
-        writer.set_parameter("width", 4)
+        writer.set_parameter("width", 4, description="Machine Width")
+        writer.set_parameter("height", 9, description="Queue Height")
         writer.start_simulation()
         writer.post_event(one, time=10, values={value: 7, txid: 1, state: 1})
         writer.post_event(two, time=20, values={txid: 1})
@@ -79,6 +80,12 @@ class TestEventStreamMCPTools(unittest.TestCase):
         params = event_stream_params(self.path, all=True)
         self.assertEqual(params["parameters"][0]["name"], "width")
         self.assertEqual(params["parameters"][0]["value"], 4)
+
+        params_by_name = event_stream_params(self.path, name_filter="ID")
+        self.assertEqual([param["name"] for param in params_by_name["parameters"]], ["width"])
+
+        params_by_description = event_stream_params(self.path, description_filter="machine")
+        self.assertEqual([param["name"] for param in params_by_description["parameters"]], ["width"])
 
         sampled = event_stream_sample(self.path, events="one", limit=1)
         self.assertEqual(len(sampled["events"]), 1)

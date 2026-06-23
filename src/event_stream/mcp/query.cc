@@ -635,15 +635,6 @@ std::vector<Metric> rate_for_time_interval(const StreamCache& stream, uint64_t i
     return metric_map_to_vector(metrics);
 }
 
-bool parameter_selected(const ParameterInfo& parameter, const ParamsOptions& options)
-{
-    if (options.all || options.params.empty())
-        return true;
-
-    return std::ranges::any_of(options.params,
-                               [&](const auto& selector) { return name_matches(selector, parameter.name); });
-}
-
 std::string lowercase(std::string value)
 {
     std::ranges::transform(value, value.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
@@ -662,6 +653,21 @@ bool inspect_item_selected(const std::string& name, const std::string& descripti
 {
     return contains_case_insensitive(name, options.name_filter)
            && contains_case_insensitive(description, options.description_filter);
+}
+
+bool parameter_selected(const ParameterInfo& parameter, const ParamsOptions& options)
+{
+    if (!contains_case_insensitive(parameter.name, options.name_filter)
+        || !contains_case_insensitive(parameter.description, options.description_filter))
+    {
+        return false;
+    }
+
+    if (options.all || options.params.empty())
+        return true;
+
+    return std::ranges::any_of(options.params,
+                               [&](const auto& selector) { return name_matches(selector, parameter.name); });
 }
 
 } // namespace
