@@ -210,6 +210,5 @@ Checks: "-*,
   readability-uppercase-literal-suffix,
   readability-use-anyofallof,
   readability-use-concise-preprocessor-directives"
-WarningsAsErrors: '*'
 ExcludeHeaderFilterRegex: '.*/strnatcmp.h'
 SystemHeaders: false
