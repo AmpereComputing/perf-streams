@@ -181,7 +181,6 @@ struct SampleOptions
     std::optional<uint64_t> start;
     std::optional<uint64_t> stop;
     uint64_t limit{100};
-    bool expand_enums{true};
 };
 
 struct SampleResult

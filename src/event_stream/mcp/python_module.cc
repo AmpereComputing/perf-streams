@@ -291,19 +291,14 @@ py::dict py_params(const std::string& path,
     return dict;
 }
 
-py::dict py_sample(const std::string& path,
-                   const py::object& events,
-                   const py::object& start,
-                   const py::object& stop,
-                   uint64_t limit,
-                   bool expand_enums)
+py::dict py_sample(
+    const std::string& path, const py::object& events, const py::object& start, const py::object& stop, uint64_t limit)
 {
     mcp::SampleOptions options;
     options.events = py_strings(events);
     options.start = py_time(start);
     options.stop = py_time(stop);
     options.limit = limit;
-    options.expand_enums = expand_enums;
 
     auto result = mcp::sample(path, options);
 
@@ -386,7 +381,6 @@ PYBIND11_MODULE(_event_stream_mcp, module)
                py::arg("start") = py::none(),
                py::arg("stop") = py::none(),
                py::arg("limit") = 100,
-               py::arg("expand_enums") = true,
                "Sample event stream events.");
     module.def("cache",
                &py_cache,

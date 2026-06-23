@@ -85,6 +85,9 @@ class TestEventStreamMCPTools(unittest.TestCase):
         rate_params = inspect.signature(event_stream_rate).parameters
         self.assertNotIn("suffix", rate_params)
 
+        sample_params = inspect.signature(event_stream_sample).parameters
+        self.assertNotIn("expand_enums", sample_params)
+
     def test_params_sample_and_cache(self):
         params = event_stream_params(self.path, all=True)
         self.assertEqual(params["parameters"][0]["name"], "width")

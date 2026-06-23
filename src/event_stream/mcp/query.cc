@@ -1008,10 +1008,6 @@ SampleResult sample(const fs::path& path, const SampleOptions& options)
         row.name = event_name;
         row.time = event.time;
         row.values = event.values;
-        if (!options.expand_enums) {
-            for (auto& value : row.values)
-                value.expanded.reset();
-        }
         result.events.push_back(std::move(row));
         if (result.events.size() >= options.limit) {
             result.truncated = true;

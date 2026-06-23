@@ -124,13 +124,12 @@ def event_stream_params(
     )
 
 
-def event_stream_sample(  # noqa: PLR0913
+def event_stream_sample(
     path: str,
     events: list[str] | str | None = None,
     start: int | str | None = None,
     stop: int | str | None = None,
     limit: int = 100,
-    expand_enums: bool = True,
 ) -> dict[str, Any]:
     """Return a bounded structured sample of events."""
     return _event_stream_mcp.sample(
@@ -139,7 +138,6 @@ def event_stream_sample(  # noqa: PLR0913
         start=start,
         stop=stop,
         limit=limit,
-        expand_enums=expand_enums,
     )
 
 
