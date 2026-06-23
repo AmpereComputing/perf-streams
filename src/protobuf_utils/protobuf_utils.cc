@@ -46,7 +46,7 @@ bool write_delimited_to(const google::protobuf::MessageLite& message,
     if (buffer != nullptr) {
         // Optimization:  The message fits in one buffer, so use the faster
         // direct-to-array serialization path.
-        uint8_t* buffer_end = message.SerializeWithCachedSizesToArray(buffer);
+        uint8_t const* buffer_end = message.SerializeWithCachedSizesToArray(buffer);
         return buffer_end == buffer + size;
     } else {
         // Slightly-slower path when the message is multiple buffers.

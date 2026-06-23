@@ -55,6 +55,10 @@ build: build-$(DEFAULT_BUILD_TYPE)
 .PHONY: debug
 debug: build-debug
 
+.PHONY: clang
+clang: .force
+	CC=clang CXX=clang++ $(MAKE) build-$(DEFAULT_BUILD_TYPE)-clang
+
 install-%: .force
 	$(MAKE) build-$* TARGET=install
 
@@ -120,20 +124,26 @@ clang-format-check:
 	$(FIND_SRCS) $(CPP_FILES) | xargs $(CLANG_FORMAT) -n -Werror
 
 .PHONY: .clang-tidy
-.clang-tidy: configure
-	$(CLANG_TIDY) -config-file .clang-tidy-required \
+.clang-tidy: clang
+	! $(CLANG_TIDY) -hide-progress -config-file .clang-tidy-required \
 		-source-filter "$(PROJECT_DIR)/src/.*.cc" \
 		-header-filter "$(PROJECT_DIR)/src/.*.h" \
 		-p $(BUILD_DIRECTORY) \
-		-j 0 $(CLANG_TIDY_ARGS)
+		-j 0 $(CLANG_TIDY_ARGS) \
+		| grep --line-buffered -v 'Enabled checks' \
+		| grep --line-buffered -ve '^    [a-z-]\+$$' \
+		| grep --line-buffered -v '^$$' \
+		| grep --line-buffered -v "warnings generated." \
+		| grep --line-buffered -v "Suppressed" \
+		| grep --line-buffered -v "errors from all non-system headers"
 
 .PHONY: clang-tidy
 clang-tidy: .require-clean
-	$(MAKE) .clang-tidy CLANG_TIDY_ARGS="-fix"
+	$(MAKE) .clang-tidy CLANG_TIDY_ARGS="-fix -format" BUILD_TYPE=$(DEFAULT_BUILD_TYPE)-clang
 
 .PHONY: clang-tidy-check
 clang-tidy-check:
-	$(MAKE) .clang-tidy
+	$(MAKE) .clang-tidy BUILD_TYPE=$(DEFAULT_BUILD_TYPE)-clang
 
 .PHONY: .python-format
 .python-format:
@@ -167,11 +177,19 @@ lint: .require-clean
 	$(MAKE) .python-lint
 	$(MAKE) .python-format
 
+.PHONY: lint-all
+lint-all: lint
+	$(MAKE) clang-tidy
+
 .PHONY: check
 check:
 	$(MAKE) clang-format-check
 	$(MAKE) python-lint-check
 	$(MAKE) python-format-check
+
+.PHONY: check-all
+check-all: check
+	$(MAKE) clang-tidy-check
 
 .PHONY: package
 package:

@@ -57,7 +57,7 @@ TEST(StreamIOTest, Stdout)
 {
     auto capture = perf_streams::testing::CaptureStdout();
     auto out = open_compressed_ostream("-");
-    *out << "test" << std::endl;
+    *out << "test" << '\n';
     out.reset();
     EXPECT_EQ(*capture, "test\n");
 }
@@ -65,7 +65,7 @@ TEST(StreamIOTest, Stdout)
 TEST_P(CompressedFStreamIOTest, ReadWrite)
 {
     auto out = open_compressed_ostream(test_path.string().c_str());
-    *out << test_string << std::endl;
+    *out << test_string << '\n';
     out.reset();
     ASSERT_TRUE(std::filesystem::exists(test_path));
 

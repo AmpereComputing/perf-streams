@@ -68,7 +68,7 @@ private:
 template<typename Item>
 bool ProtobufStreamReader::read(Item& item)
 {
-    bool status = reader->read(&item);
+    bool const status = reader->read(&item);
     if (!status)
         try_close();
     return status;

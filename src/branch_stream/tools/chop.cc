@@ -62,10 +62,10 @@ std::vector<std::string> parse_arguments(std::vector<std::string> arguments, Opt
                 positional_arguments.push_back(arguments[i]);
         }
     } catch (std::out_of_range&) {
-        std::cerr << "missing argument value" << std::endl;
+        std::cerr << "missing argument value" << '\n';
         print_help_and_exit();
     } catch (std::runtime_error& err) {
-        std::cerr << err.what() << std::endl;
+        std::cerr << err.what() << '\n';
         print_help_and_exit();
     }
 
@@ -81,15 +81,15 @@ int main(int argc, char** argv)
     if (files.size() != 2)
         print_help_and_exit();
 
-    std::filesystem::path input_file_path(files[0]);
-    std::filesystem::path output_file_path(files[1]);
+    std::filesystem::path const input_file_path(files[0]);
+    std::filesystem::path const output_file_path(files[1]);
 
     auto reader = std::make_unique<BranchStreamReader>(input_file_path);
     auto writer = std::make_unique<BranchStreamWriter>(output_file_path, options.force);
     Event event;
 
     std::cout << "Chopping " << input_file_path << " to " << options.capture_branches
-              << " branches starting after seeing " << options.wait_branches << " branches." << std::endl;
+              << " branches starting after seeing " << options.wait_branches << " branches." << '\n';
 
     long branch_count = 0;
 
@@ -110,7 +110,7 @@ int main(int argc, char** argv)
 
     if (branch_count < options.wait_branches + options.capture_branches) {
         std::cerr << "Warning: Insufficient branches in the input stream; wrote only "
-                  << std::max(0L, branch_count - options.wait_branches) << " branches." << std::endl;
+                  << std::max(0L, branch_count - options.wait_branches) << " branches." << '\n';
         return EXIT_FAILURE;
     }
 

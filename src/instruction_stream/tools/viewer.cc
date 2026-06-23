@@ -108,7 +108,7 @@ int main(int argc, char** argv)
 
     bool measurement_started = (reader.version() < 2) || include_warmup_instrs;
     if (!measurement_started)
-        std::cout << "Ignoring instructions before START_MEASUREMENT event" << std::endl;
+        std::cout << "Ignoring instructions before START_MEASUREMENT event" << '\n';
 
     while (reader.read(event)) {
         event_count++;
@@ -203,7 +203,7 @@ int main(int argc, char** argv)
                 if (instruction.has_exception()) {
                     fmt::print("caused exception (ESR_EL1.EC = {:#b}) ", instruction.exception().exception_class());
                 }
-                std::cout << std::endl;
+                std::cout << '\n';
             }
             memop_count += instruction.memop_size();
         } else if (event.has_memory()) {
@@ -242,7 +242,7 @@ int main(int argc, char** argv)
                     }
                     std::cout << " 0x" << std::hex << data;
                 }
-                std::cout << std::endl;
+                std::cout << '\n';
             }
             memory_count++;
         } else if (event.has_sysreg()) {
@@ -253,22 +253,22 @@ int main(int argc, char** argv)
                       << "crn: " << sysreg.crn() << " "
                       << "crm: " << sysreg.crm() << " "
                       << "op2: " << sysreg.op2() << " "
-                      << "value: 0x" << std::hex << sysreg.value() << std::endl;
+                      << "value: 0x" << std::hex << sysreg.value() << '\n';
             sysreg_count++;
         } else if (event.has_context()) {
             const auto& context = event.context();
             std::cout << "Context: "
                       << "type: " << Context::Type_Name(context.type()) << " "
-                      << "value: " << context.value() << std::endl;
+                      << "value: " << context.value() << '\n';
             context_count++;
         } else if (event.has_control()) {
             const auto& control = event.control();
-            std::cout << "Control: " << "type: " << Control::Type_Name(control.type()) << std::endl;
+            std::cout << "Control: " << "type: " << Control::Type_Name(control.type()) << '\n';
             control_count++;
             if (control.type() == Control::START_MEASUREMENT) {
                 if (!include_warmup_instrs)
                     std::cout << "Omitted " << std::dec << instruction_count
-                              << " instructions before measurement began." << std::endl;
+                              << " instructions before measurement began." << '\n';
                 measurement_started = true;
             }
         }
@@ -276,11 +276,11 @@ int main(int argc, char** argv)
     }
 
     std::cout << std::dec;
-    std::cout << "instruction count = " << instruction_count << std::endl;
-    std::cout << "memop count = " << memop_count << std::endl;
-    std::cout << "memory count = " << memory_count << std::endl;
-    std::cout << "sysreg count = " << sysreg_count << std::endl;
-    std::cout << "context count = " << context_count << std::endl;
-    std::cout << "control count = " << control_count << std::endl;
-    std::cout << "total event count = " << event_count << std::endl;
+    std::cout << "instruction count = " << instruction_count << '\n';
+    std::cout << "memop count = " << memop_count << '\n';
+    std::cout << "memory count = " << memory_count << '\n';
+    std::cout << "sysreg count = " << sysreg_count << '\n';
+    std::cout << "context count = " << context_count << '\n';
+    std::cout << "control count = " << control_count << '\n';
+    std::cout << "total event count = " << event_count << '\n';
 }

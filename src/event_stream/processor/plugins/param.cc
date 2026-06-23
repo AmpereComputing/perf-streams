@@ -76,7 +76,7 @@ void Param::help(int argc, const char** argv)
 
 void Param::watch_param(std::string arg)
 {
-    bool is_pattern = processor::is_pattern(arg);
+    bool const is_pattern = processor::is_pattern(arg);
     if (is_pattern) {
         re_params_to_report.emplace_back(glob_to_pattern(arg));
     } else {

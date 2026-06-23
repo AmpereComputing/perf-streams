@@ -33,3 +33,6 @@ To check:
 To fix all auto-fixable issues:
 
     make lint
+
+Some checks are behind `make check-all`, which similarily can be fixed with
+`make lint-all`.

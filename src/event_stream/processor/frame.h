@@ -294,7 +294,7 @@ void Frame<Value, Traits>::add_col(const ColSeries<value_type, Traits>& series)
     else if (data.size() != m_rows)
         throw std::runtime_error{"Frame requires columns of equal size"};
 
-    if (m_table.count(name))
+    if (m_table.contains(name))
         throw std::runtime_error{fmt::format("duplicate column name \"{}\"", name)};
 
     m_table[name] = data;
@@ -320,7 +320,7 @@ void Frame<Value, Traits>::rename(const column_name_type& old_col_name, const co
     if (it == m_table.end())
         throw std::runtime_error{fmt::format("no such column \"{}\"", old_col_name)};
 
-    if (m_table.count(new_col_name))
+    if (m_table.contains(new_col_name))
         throw std::runtime_error{fmt::format("duplicate column name \"{}\"", new_col_name)};
 
     m_table[new_col_name] = std::move(it->second);

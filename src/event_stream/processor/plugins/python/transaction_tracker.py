@@ -6,7 +6,6 @@
 from collections.abc import Callable
 
 import evp
-
 from perf_streams.event_stream import Event
 
 type TxData = bool | int | float | str

@@ -45,7 +45,8 @@ struct BothDefinitionExample : EventDefinitionExample, EventDataDefinitionExampl
 {
     template<typename... Args>
     explicit BothDefinitionExample(EventStream& event_stream, Args&&... args)
-        : EventDefinitionExample(event_stream, "event"), EventDataDefinitionExample<T>(event_stream, "data")
+        : EventDefinitionExample(event_stream, "event"),
+          EventDataDefinitionExample<T>(event_stream, "data", std::forward<Args>(args)...)
     {
     }
 };
@@ -58,7 +59,7 @@ struct EventStreamTest : public ::testing::Test
     {
     }
 
-    void SetUp() override { event_stream->reset(); }
+    void SetUp() override { (*event_stream).reset(); }
 
     std::unique_ptr<MockEventAnnouncer> event_announcer;
     std::unique_ptr<EventStreamDummy> event_stream;

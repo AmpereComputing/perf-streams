@@ -23,7 +23,7 @@ EventStreamReader::EventStreamReader(std::filesystem::path filepath)
 
 bool EventStreamReader::read(event_stream_proto::Record& record)
 {
-    bool read_record = ProtobufStreamReader::read(record);
+    bool const read_record = ProtobufStreamReader::read(record);
     if (read_record && record.has_definition())
         store_definition(record);
 

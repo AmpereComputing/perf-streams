@@ -207,7 +207,7 @@ void Capture::add_filter(const std::string& filter_spec)
         throw std::runtime_error{
             fmt::format("invalid filter spec (\"{}\") should be <data name>=<value>", filter_spec)};
 
-    std::string data_name = filter_spec.substr(0, eq);
+    std::string const data_name = filter_spec.substr(0, eq);
     std::string value_str = filter_spec.substr(eq + 1);
 
     if (value_str.size() > 2 && value_str[0] == '0' && value_str[1] == 'x')

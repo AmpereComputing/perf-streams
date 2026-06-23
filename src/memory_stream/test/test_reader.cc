@@ -20,12 +20,12 @@ protected:
 
 TEST_F(MemoryStreamReaderTest, MissingFile)
 {
-    ASSERT_THROW(MemoryStreamReader ms("doesnotexist.ms"), std::system_error);
+    ASSERT_THROW(const MemoryStreamReader ms("doesnotexist.ms"), std::system_error);
 }
 
 TEST_F(MemoryStreamReaderTest, MissingXZFile)
 {
-    ASSERT_THROW(MemoryStreamReader ms("doesnotexist.ms.xz"), std::system_error);
+    ASSERT_THROW(const MemoryStreamReader ms("doesnotexist.ms.xz"), std::system_error);
 }
 
 TEST_F(MemoryStreamReaderTest, Read)

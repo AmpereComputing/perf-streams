@@ -165,7 +165,7 @@ ProtobufStreamReader::~ProtobufStreamReader()
 void ProtobufStreamReader::try_close()
 {
     if (fp != nullptr) {
-        int status = pclose(fp);
+        int const status = pclose(fp);
         if (status != 0) {
             std::string msg("error reading from xzcat or gunzip for ");
             msg += filepath.string();

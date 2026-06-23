@@ -48,7 +48,7 @@ protected:
 
     static std::unique_ptr<google::protobuf::io::FileInputStream> reopen_test_file()
     {
-        int fd = open(test_file_name(), O_RDONLY);
+        int const fd = open(test_file_name(), O_RDONLY);
         auto input_stream = std::make_unique<google::protobuf::io::FileInputStream>(fd);
         verify_file_version(input_stream.get());
         return input_stream;
@@ -189,16 +189,16 @@ TEST_F(EventStreamTest, PostStringValue)
 
 TEST_F(EventStreamTest, PostAllIntegralTypes)
 {
-    signed char sch = std::numeric_limits<signed char>::max();
-    unsigned char uch = std::numeric_limits<unsigned char>::max();
-    signed short ssh = std::numeric_limits<signed short>::max();
-    unsigned short ush = std::numeric_limits<unsigned short>::max();
-    signed int si = std::numeric_limits<signed int>::max();
-    unsigned int ui = std::numeric_limits<unsigned int>::max();
-    signed long sl = std::numeric_limits<signed long>::max();
-    unsigned long ul = std::numeric_limits<unsigned long>::max();
-    signed long long sll = std::numeric_limits<signed long long>::max();
-    unsigned long long ull = std::numeric_limits<unsigned long long>::max();
+    signed char const sch = std::numeric_limits<signed char>::max();
+    unsigned char const uch = std::numeric_limits<unsigned char>::max();
+    signed short const ssh = std::numeric_limits<signed short>::max();
+    unsigned short const ush = std::numeric_limits<unsigned short>::max();
+    signed int const si = std::numeric_limits<signed int>::max();
+    unsigned int const ui = std::numeric_limits<unsigned int>::max();
+    signed long const sl = std::numeric_limits<signed long>::max();
+    unsigned long const ul = std::numeric_limits<unsigned long>::max();
+    signed long long const sll = std::numeric_limits<signed long long>::max();
+    unsigned long long const ull = std::numeric_limits<unsigned long long>::max();
 
     {
         auto es = make_es();

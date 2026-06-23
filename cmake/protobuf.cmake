@@ -19,6 +19,7 @@ function(add_cpp_protobuf name target)
         PROTOS ${CPP_PROTOBUF_PROTOS}
         ${extra_args}
     )
+    set_source_files_properties(${PROTO_CPP_SRCS} PROPERTIES SKIP_LINTING ON)
     if(CPP_PROTOBUF_INSTALL)
         install(FILES ${PROTO_CPP_SRCS} DESTINATION ${INSTALL_INCLUDE_PATH}/${name})
     endif()
@@ -48,6 +49,7 @@ function(add_python_protobuf name)
         PROTOS ${PY_PROTOBUF_PROTOS}
         ${extra_args}
     )
+    set_source_files_properties(${PROTO_PY_SRCS} PROPERTIES SKIP_LINTING ON)
     if(NOT PY_PROTOBUF_TARGET)
         set(PY_PROTOBUF_TARGET ${name}_proto_python)
     endif()

@@ -12,7 +12,7 @@ namespace perf_streams::event_stream {
 
 void EventStreamRecorder::record_event(const RecorderEventHandle& event)
 {
-    RecordedEvent e(event, this);
+    RecordedEvent const e(event, this);
     if (callback_func)
         callback_func(e);
     else

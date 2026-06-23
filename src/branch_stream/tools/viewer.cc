@@ -20,7 +20,7 @@ using namespace perf_streams::branch_stream;
 int main(int argc, char** argv)
 {
     if (argc < 2) {
-        std::cout << "branch_stream_viewer [branch stream]" << std::endl;
+        std::cout << "branch_stream_viewer [branch stream]" << '\n';
         exit(1);
     }
 
@@ -63,15 +63,15 @@ int main(int argc, char** argv)
         event.Clear();
     }
 
-    std::cout << std::dec << std::endl;
-    std::cout << "total branches = " << branch_count << std::endl;
-    std::cout << "taken branches = " << taken_count << std::endl;
-    std::cout << "conditional direct branches = " << type_counts[Branch_Type_CONDITIONAL_DIRECT] << std::endl;
-    std::cout << "unconditional direct branches = " << type_counts[Branch_Type_UNCONDITIONAL_DIRECT] << std::endl;
-    std::cout << "unconditional indirect branches = " << type_counts[Branch_Type_UNCONDITIONAL_INDIRECT] << std::endl;
-    std::cout << "call direct branches = " << type_counts[Branch_Type_CALL_DIRECT] << std::endl;
-    std::cout << "call indirect branches = " << type_counts[Branch_Type_CALL_INDIRECT] << std::endl;
-    std::cout << "return branches = " << type_counts[Branch_Type_RETURN] << std::endl;
-    std::cout << "total sysregs = " << sysreg_count << std::endl;
-    std::cout << "total context events = " << context_count << std::endl;
+    std::cout << std::dec << '\n';
+    std::cout << "total branches = " << branch_count << '\n';
+    std::cout << "taken branches = " << taken_count << '\n';
+    std::cout << "conditional direct branches = " << type_counts[Branch_Type_CONDITIONAL_DIRECT] << '\n';
+    std::cout << "unconditional direct branches = " << type_counts[Branch_Type_UNCONDITIONAL_DIRECT] << '\n';
+    std::cout << "unconditional indirect branches = " << type_counts[Branch_Type_UNCONDITIONAL_INDIRECT] << '\n';
+    std::cout << "call direct branches = " << type_counts[Branch_Type_CALL_DIRECT] << '\n';
+    std::cout << "call indirect branches = " << type_counts[Branch_Type_CALL_INDIRECT] << '\n';
+    std::cout << "return branches = " << type_counts[Branch_Type_RETURN] << '\n';
+    std::cout << "total sysregs = " << sysreg_count << '\n';
+    std::cout << "total context events = " << context_count << '\n';
 }

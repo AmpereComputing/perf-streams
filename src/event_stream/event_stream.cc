@@ -40,7 +40,7 @@ EventStream::Enumerations& EventStream::Enumerations::instance()
 
 EventType EventStream::Definitions::define_event(EventDefinition& event)
 {
-    std::unique_lock<std::mutex> lock{definitions_mtx};
+    std::unique_lock<std::mutex> const lock{definitions_mtx};
     definitions.emplace_back(DefType::EVENT, event.name(), event.description());
     events.insert({definitions.size(), &event});
     return definitions.size();
@@ -48,14 +48,14 @@ EventType EventStream::Definitions::define_event(EventDefinition& event)
 
 EventType EventStream::Definitions::define_event(const std::string& name, const std::string& description)
 {
-    std::unique_lock<std::mutex> lock{definitions_mtx};
+    std::unique_lock<std::mutex> const lock{definitions_mtx};
     definitions.emplace_back(DefType::EVENT, name, description);
     return definitions.size();
 }
 
 DataType EventStream::Definitions::define_data(const std::string& name, const std::string& description)
 {
-    std::unique_lock<std::mutex> lock{definitions_mtx};
+    std::unique_lock<std::mutex> const lock{definitions_mtx};
     definitions.emplace_back(DefType::DATA, name, description);
     return definitions.size();
 }
@@ -64,14 +64,14 @@ DataType EventStream::Definitions::define_data(const std::string& name,
                                                const std::string& description,
                                                EnumType enumeration)
 {
-    std::unique_lock<std::mutex> lock{definitions_mtx};
+    std::unique_lock<std::mutex> const lock{definitions_mtx};
     definitions.emplace_back(DefType::DATA, name, description, enumeration);
     return definitions.size();
 }
 
 size_t EventStream::Definitions::catch_up(EventStream& stream, size_t index)
 {
-    std::unique_lock<std::mutex> lock{definitions_mtx};
+    std::unique_lock<std::mutex> const lock{definitions_mtx};
 
     while (index < definitions.size()) {
         auto& defn = definitions[index];
@@ -91,13 +91,13 @@ size_t EventStream::Definitions::catch_up(EventStream& stream, size_t index)
 
 void EventStream::Definitions::clear()
 {
-    std::unique_lock<std::mutex> lock{definitions_mtx};
+    std::unique_lock<std::mutex> const lock{definitions_mtx};
     definitions.clear();
 }
 
 EnumType EventStream::Enumerations::reserve_enum(std::type_index enum_type)
 {
-    std::unique_lock<std::mutex> lock{enumerations_mtx};
+    std::unique_lock<std::mutex> const lock{enumerations_mtx};
     if (auto existing = enumeration_types.find(enum_type); existing != enumeration_types.end())
         return existing->second;
 
@@ -112,7 +112,7 @@ EnumType EventStream::Enumerations::define_enum(std::type_index enum_type, const
     if (enumerations.empty())
         throw std::logic_error("Defining an empty enum");
 
-    std::unique_lock<std::mutex> lock{enumerations_mtx};
+    std::unique_lock<std::mutex> const lock{enumerations_mtx};
     if (auto existing = enumeration_types.find(enum_type); existing != enumeration_types.end()) {
         if (this->enumerations[existing->second] != enumerations)
             throw std::logic_error("Enumeration was defined with different values");
@@ -127,7 +127,7 @@ EnumType EventStream::Enumerations::define_enum(std::type_index enum_type, const
 
 EnumType EventStream::Enumerations::define_enum(size_t id, const EnumMappingType& enumerations)
 {
-    std::unique_lock<std::mutex> lock{enumerations_mtx};
+    std::unique_lock<std::mutex> const lock{enumerations_mtx};
     if (auto existing = enumeration_types.find(id); existing != enumeration_types.end()) {
         if (this->enumerations[existing->second] != enumerations)
             throw std::logic_error("Enumeration was redefined with different values");
@@ -142,7 +142,7 @@ EnumType EventStream::Enumerations::define_enum(size_t id, const EnumMappingType
 
 EnumType EventStream::Enumerations::provide_enum(std::type_index enum_type, const EnumMappingType& enumerations)
 {
-    std::unique_lock<std::mutex> lock{enumerations_mtx};
+    std::unique_lock<std::mutex> const lock{enumerations_mtx};
     auto existing = enumeration_types.find(enum_type);
     if (existing == enumeration_types.end())
         throw std::logic_error("Providing enumeration which was not already defined");
@@ -159,7 +159,7 @@ EnumType EventStream::Enumerations::provide_enum(std::type_index enum_type, cons
 
 size_t EventStream::Enumerations::catch_up(EventStream& stream, size_t index)
 {
-    std::unique_lock<std::mutex> lock{enumerations_mtx};
+    std::unique_lock<std::mutex> const lock{enumerations_mtx};
 
     for (; index < enumerations.size(); ++index) {
         auto& enumeration = enumerations[index];
@@ -174,7 +174,7 @@ size_t EventStream::Enumerations::catch_up(EventStream& stream, size_t index)
 
 void EventStream::Enumerations::clear()
 {
-    std::unique_lock<std::mutex> lock{enumerations_mtx};
+    std::unique_lock<std::mutex> const lock{enumerations_mtx};
     enumerations.clear();
     enumeration_types.clear();
 }

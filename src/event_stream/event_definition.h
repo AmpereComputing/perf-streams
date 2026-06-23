@@ -87,7 +87,7 @@ auto to_event_args(T&& x)
     return EventArgs<std::remove_cvref_t<T>>::make(std::forward<T>(x));
 }
 
-namespace {
+namespace detail {
 
 template<class T>
 concept enum_signed_integral = std::is_enum_v<T> && std::is_signed_v<std::underlying_type_t<T>>;
@@ -177,7 +177,7 @@ struct arg_iter<0>
     }
 };
 
-} // namespace
+} // namespace detail
 
 class EventDefinition
 {
@@ -194,9 +194,9 @@ public:
     void at(TimeType at_time, T&& first, Ts&&... rest)
     {
         if (enabled && event_stream->is_enabled()) {
-            auto args = make_arg_pack(std::forward<T>(first), std::forward<Ts>(rest)...);
+            auto args = detail::make_arg_pack(std::forward<T>(first), std::forward<Ts>(rest)...);
             auto* eh = event_stream->open_event(definition, at_time);
-            arg_iter<std::tuple_size<decltype(args)>::value>::add_data(*event_stream, eh, args);
+            detail::arg_iter<std::tuple_size_v<decltype(args)>>::add_data(*event_stream, eh, args);
             event_stream->close_event(eh);
         }
     }

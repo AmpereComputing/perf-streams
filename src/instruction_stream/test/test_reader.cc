@@ -20,12 +20,12 @@ protected:
 
 TEST_F(InstructionStreamReaderTest, testMissingFile)
 {
-    ASSERT_THROW(InstructionStreamReader is("doesnotexist.is"), std::system_error);
+    ASSERT_THROW(const InstructionStreamReader is("doesnotexist.is"), std::system_error);
 }
 
 TEST_F(InstructionStreamReaderTest, testMissingXZFile)
 {
-    ASSERT_THROW(InstructionStreamReader is("doesnotexist.is.xz"), std::system_error);
+    ASSERT_THROW(const InstructionStreamReader is("doesnotexist.is.xz"), std::system_error);
 }
 
 TEST_F(InstructionStreamReaderTest, testRead)

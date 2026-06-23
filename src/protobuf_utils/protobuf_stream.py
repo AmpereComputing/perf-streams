@@ -11,7 +11,6 @@ except ImportError:
     from backports import lzma
 
 from google.protobuf.message import Message
-
 from perf_streams.protobuf_utils import SIZE_STRUCT, is32, read_header_from, write_delimited_to, write_header_to
 
 

@@ -11,7 +11,8 @@ Run tests with `make test`
 ## Linting
 
 Linting can be checked with `make check` and automatically fixed with `make
-lint`.
+lint`. Some checks are behind `make check-all`, which similarily can be fixed
+with `make lint-all`.
 
 ## Coding format
 

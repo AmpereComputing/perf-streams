@@ -110,7 +110,7 @@ int main(int argc, char* argv[])
         while (reader.read(event)) {
             // record EL changes
             if (event.has_context()) {
-                Context context = event.context();
+                Context const context = event.context();
 
                 if (Context::EL == context.type()) {
                     curr_el = context.value();
@@ -128,7 +128,7 @@ int main(int argc, char* argv[])
     while (reader.read(event)) {
         // record EL changes
         if (event.has_context()) {
-            Context context = event.context();
+            Context const context = event.context();
 
             if (Context::EL == context.type()) {
                 curr_el = context.value();

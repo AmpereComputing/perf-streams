@@ -53,7 +53,7 @@ using process_source = process_piped<boost::iostreams::file_descriptor_source>;
 
 CompressionType compression_from_filename(const char* filename)
 {
-    std::filesystem::path filepath{filename};
+    std::filesystem::path const filepath{filename};
     auto extension = filepath.extension();
     if (extension == ".gz") {
         return CompressionType::GZIP;

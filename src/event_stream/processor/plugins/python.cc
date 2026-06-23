@@ -470,7 +470,7 @@ PythonPluginHelper::~PythonPluginHelper()
  */
 void PythonPluginHelper::py_on(const std::string& trigger, PyObject* func)
 {
-    Action action = [this, trigger, func](Counter*, const event_stream_proto::Event& proto_event) {
+    Action const action = [this, trigger, func](Counter*, const event_stream_proto::Event& proto_event) {
         // Create an Event object by calling its constructor.
         // I.e., this is the equivalent of "Event()" in Python.
         PyObject* event_args = Py_BuildValue("()");
@@ -593,7 +593,7 @@ void PythonPluginHelper::collect(MetricSeries& metrics, uint64_t trigger_time)
 
                 if (PyLong_Check(value)) {
                     int overflow;
-                    int64_t i64 = PyLong_AsLongLongAndOverflow(value, &overflow);
+                    int64_t const i64 = PyLong_AsLongLongAndOverflow(value, &overflow);
 
                     if (overflow == 0) {
                         metrics[key_str] = i64;
@@ -601,7 +601,7 @@ void PythonPluginHelper::collect(MetricSeries& metrics, uint64_t trigger_time)
                         py_err("integer underflow");
                     } else if (overflow > 0) {
                         // FIXME: How to catch errors here?
-                        uint64_t u64 = PyLong_AsUnsignedLongLong(value);
+                        uint64_t const u64 = PyLong_AsUnsignedLongLong(value);
                         metrics[key_str] = u64;
                     }
                 } else if (PyFloat_Check(value)) {

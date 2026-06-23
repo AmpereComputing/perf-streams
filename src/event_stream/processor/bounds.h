@@ -50,7 +50,6 @@ struct FactorBounds
     {
         std::optional<int64_t> minimum;
         std::optional<int64_t> maximum;
-        std::string sequence;
         auto min_sep = spec.find(':');
         if (min_sep == std::string::npos)
             throw std::runtime_error{

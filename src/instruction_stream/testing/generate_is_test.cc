@@ -41,7 +41,7 @@ Features text_to_features(const std::list<std::string>& lines)
     }};
 
     Features features;
-    bool within_header = false;
+    bool const within_header = false;
     for (const auto& line : lines) {
         if (within_header) {
             std::smatch m;

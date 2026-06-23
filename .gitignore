@@ -9,6 +9,7 @@
 /.direnv/
 /.idea/*
 /.vscode/*
+/CMakeFiles
 /build-*/
 /build/
 /dist/

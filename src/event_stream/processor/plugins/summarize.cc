@@ -155,19 +155,19 @@ void Summarize::print_header(std::ostream& out, const MetricTableTimeSeries& ts)
     for (auto& name : ts.columns())
         out << ',' << name;
 
-    out << std::endl;
+    out << '\n';
 }
 
 void Summarize::print_row(std::ostream& out, const MetricTableTimeSeries& ts, size_t row, uint64_t start_time) const
 {
-    uint64_t stop_time = ts.times[row];
+    uint64_t const stop_time = ts.times[row];
 
     out << start_time << ',' << stop_time;
 
     for (const auto& value : ts.row(row))
         out << ',' << value;
 
-    out << std::endl;
+    out << '\n';
 }
 
 void Summarize::print_human_summary(std::ostream& out, const MetricTableTimeSeries& ts) const

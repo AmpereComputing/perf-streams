@@ -47,8 +47,7 @@ private:
         {
             auto replaced = std::regex_replace(name, from, to);
             if (type & LOWERCASE)
-                std::transform(
-                    replaced.begin(), replaced.end(), replaced.begin(), [](auto c) { return std::tolower(c); });
+                std::ranges::transform(replaced, replaced.begin(), [](auto c) { return std::tolower(c); });
             return replaced;
         }
     };
@@ -94,7 +93,7 @@ void Rename::help(int argc, const char** argv)
 
 void Rename::add_rename(const std::string& arg, unsigned type)
 {
-    size_t pos = arg.find('=');
+    size_t const pos = arg.find('=');
 
     if (pos == std::string::npos)
         throw std::runtime_error{"argument to rename must be <pattern>=<replacement>"};
