@@ -24,11 +24,13 @@ class TestEventStreamMCPTools(unittest.TestCase):
         one = writer.define_event("one", "One")
         two = writer.define_event("two", "Two")
         value = writer.define_data("value", "Value")
+        state_enum = writer.define_enumeration({1: "MISS", 2: "HIT"})
+        state = writer.define_data("state", "State", enumeration=state_enum)
         writer.set_parameter("width", 4)
         writer.start_simulation()
-        writer.post_event(one, time=10, values={value: 7})
+        writer.post_event(one, time=10, values={value: 7, state: 1})
         writer.post_event(two, time=20)
-        writer.post_event(one, time=30, values={value: 5})
+        writer.post_event(one, time=30, values={value: 5, state: 2})
         writer.close()
 
     def tearDown(self):
@@ -39,6 +41,8 @@ class TestEventStreamMCPTools(unittest.TestCase):
         inspected = event_stream_inspect(self.path)
         self.assertEqual(inspected["event_count"], 3)
         self.assertEqual(inspected["counts_by_definition"]["one"], 2)
+        self.assertEqual(inspected["enumerations"], [{"id": 0, "values": {1: "MISS", 2: "HIT"}}])
+        self.assertNotIn("enumeration_id", inspected["definitions"][3])
 
         by_name = event_stream_inspect(self.path, name_filter="VAL")
         self.assertEqual([definition["name"] for definition in by_name["definitions"]], ["value"])

@@ -65,10 +65,6 @@ py::dict py_definition(const mcp::DefinitionInfo& definition)
     dict["id"] = definition.id;
     dict["name"] = definition.name;
     dict["description"] = definition.description;
-    if (definition.enumeration_id)
-        dict["enumeration_id"] = *definition.enumeration_id;
-    else
-        dict["enumeration_id"] = py::none();
     return dict;
 }
 
