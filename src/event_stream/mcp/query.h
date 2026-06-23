@@ -104,6 +104,8 @@ struct InspectOptions
 {
     bool include_values{true};
     bool include_params{true};
+    std::optional<std::string> name_filter;
+    std::optional<std::string> description_filter;
 };
 
 struct InspectResult

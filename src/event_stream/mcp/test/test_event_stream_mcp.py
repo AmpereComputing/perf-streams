@@ -40,6 +40,13 @@ class TestEventStreamMCPTools(unittest.TestCase):
         self.assertEqual(inspected["event_count"], 3)
         self.assertEqual(inspected["counts_by_definition"]["one"], 2)
 
+        by_name = event_stream_inspect(self.path, name_filter="VAL")
+        self.assertEqual([definition["name"] for definition in by_name["definitions"]], ["value"])
+
+        by_description = event_stream_inspect(self.path, description_filter="tw")
+        self.assertEqual([definition["name"] for definition in by_description["definitions"]], ["two"])
+        self.assertEqual(by_description["counts_by_definition"], {"two": 1})
+
         counted = event_stream_count(self.path, events=["one"], accumulate=["one/value"])
         metrics = {metric["name"]: metric["value"] for metric in counted["summary"]}
         self.assertEqual(metrics["one"], 2)

@@ -15,6 +15,7 @@
 #include "event_stream/processor/utils.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -643,6 +644,26 @@ bool parameter_selected(const ParameterInfo& parameter, const ParamsOptions& opt
                                [&](const auto& selector) { return name_matches(selector, parameter.name); });
 }
 
+std::string lowercase(std::string value)
+{
+    std::ranges::transform(value, value.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return value;
+}
+
+bool contains_case_insensitive(const std::string& value, const std::optional<std::string>& filter)
+{
+    if (!filter || filter->empty())
+        return true;
+
+    return lowercase(value).find(lowercase(*filter)) != std::string::npos;
+}
+
+bool inspect_item_selected(const std::string& name, const std::string& description, const InspectOptions& options)
+{
+    return contains_case_insensitive(name, options.name_filter)
+           && contains_case_insensitive(description, options.description_filter);
+}
+
 } // namespace
 
 Scalar Scalar::boolean(bool value)
@@ -762,16 +783,40 @@ InspectResult inspect(const fs::path& path, const InspectOptions& options)
     result.first_time = stream.first_time;
     result.last_time = stream.last_time;
     result.event_count = stream.events.size();
-    result.counts_by_definition = stream.counts_by_definition;
-
     for (const auto& [id, definition] : stream.definitions) {
-        if (options.include_values || definition.kind == "event")
+        if ((options.include_values || definition.kind == "event")
+            && inspect_item_selected(definition.name, definition.description, options))
+        {
             result.definitions.push_back(definition);
+        }
     }
-    for (const auto& [id, enumeration] : stream.enumerations)
-        result.enumerations.push_back(enumeration);
-    if (options.include_params)
-        result.parameters = stream.parameters;
+    for (const auto& [name, count] : stream.counts_by_definition) {
+        auto event_id = stream.event_ids_by_name.find(name);
+        if (event_id == stream.event_ids_by_name.end()) {
+            if (contains_case_insensitive(name, options.name_filter) && !options.description_filter)
+                result.counts_by_definition[name] = count;
+            continue;
+        }
+
+        const auto& definition = stream.definitions.at(event_id->second);
+        if (inspect_item_selected(definition.name, definition.description, options))
+            result.counts_by_definition[name] = count;
+    }
+    for (const auto& [id, enumeration] : stream.enumerations) {
+        auto used = std::ranges::any_of(result.definitions, [&](const auto& definition) {
+            return definition.enumeration_id && *definition.enumeration_id == id;
+        });
+        if (!options.name_filter && !options.description_filter)
+            used = true;
+        if (used)
+            result.enumerations.push_back(enumeration);
+    }
+    if (options.include_params) {
+        for (const auto& parameter : stream.parameters) {
+            if (inspect_item_selected(parameter.name, parameter.description, options))
+                result.parameters.push_back(parameter);
+        }
+    }
     return result;
 }
 

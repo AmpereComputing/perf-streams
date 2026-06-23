@@ -21,9 +21,21 @@ except ImportError as exc:
     FastMCP = None
 
 
-def event_stream_inspect(path: str, include_values: bool = True, include_params: bool = True) -> dict[str, Any]:
-    """Inspect an event stream."""
-    return _event_stream_mcp.inspect(path, include_values=include_values, include_params=include_params)
+def event_stream_inspect(
+    path: str,
+    include_values: bool = True,
+    include_params: bool = True,
+    name_filter: str | None = None,
+    description_filter: str | None = None,
+) -> dict[str, Any]:
+    """Inspect an event stream, optionally filtering names or descriptions by partial, case-insensitive match."""
+    return _event_stream_mcp.inspect(
+        path,
+        include_values=include_values,
+        include_params=include_params,
+        name_filter=name_filter,
+        description_filter=description_filter,
+    )
 
 
 def event_stream_count(  # noqa: PLR0913

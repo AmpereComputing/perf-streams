@@ -75,6 +75,35 @@ TEST_F(EventStreamMCPTest, InspectExtractsMetadata)
     EXPECT_EQ(result.parameters.size(), 3);
 }
 
+TEST_F(EventStreamMCPTest, InspectFiltersMetadata)
+{
+    auto path = build_es("basic.in");
+
+    mcp::InspectOptions name_options;
+    name_options.name_filter = "DATA";
+    auto name_result = mcp::inspect(path, name_options);
+    ASSERT_EQ(name_result.definitions.size(), 2);
+    EXPECT_EQ(name_result.definitions[0].name, "data1");
+    EXPECT_EQ(name_result.definitions[1].name, "data2");
+    EXPECT_TRUE(name_result.counts_by_definition.empty());
+    EXPECT_TRUE(name_result.parameters.empty());
+
+    mcp::InspectOptions description_options;
+    description_options.description_filter = "VEN";
+    auto description_result = mcp::inspect(path, description_options);
+    ASSERT_EQ(description_result.definitions.size(), 2);
+    EXPECT_EQ(description_result.definitions[0].name, "one");
+    EXPECT_EQ(description_result.definitions[1].name, "two");
+    EXPECT_EQ(description_result.counts_by_definition["one"], 2);
+    EXPECT_EQ(description_result.counts_by_definition["two"], 2);
+
+    mcp::InspectOptions param_options;
+    param_options.name_filter = "MACHINE";
+    auto param_result = mcp::inspect(path, param_options);
+    ASSERT_EQ(param_result.parameters.size(), 1);
+    EXPECT_EQ(param_result.parameters.front().name, "core.machine_width");
+}
+
 TEST_F(EventStreamMCPTest, CountParamsAndSample)
 {
     auto path = build_es("basic.in");

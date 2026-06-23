@@ -161,9 +161,21 @@ std::optional<uint64_t> py_time(const py::object& obj)
     throw std::runtime_error{"expected an integer time or time specification string"};
 }
 
-py::dict py_inspect(const std::string& path, bool include_values, bool include_params)
+py::dict py_inspect(const std::string& path,
+                    bool include_values,
+                    bool include_params,
+                    const py::object& name_filter,
+                    const py::object& description_filter)
 {
-    auto result = mcp::inspect(path, {.include_values = include_values, .include_params = include_params});
+    mcp::InspectOptions options;
+    options.include_values = include_values;
+    options.include_params = include_params;
+    if (!name_filter.is_none())
+        options.name_filter = py::cast<std::string>(name_filter);
+    if (!description_filter.is_none())
+        options.description_filter = py::cast<std::string>(description_filter);
+
+    auto result = mcp::inspect(path, options);
 
     py::dict time_range;
     if (result.first_time)
@@ -334,6 +346,8 @@ PYBIND11_MODULE(_event_stream_mcp, module)
                py::arg("path"),
                py::arg("include_values") = true,
                py::arg("include_params") = true,
+               py::arg("name_filter") = py::none(),
+               py::arg("description_filter") = py::none(),
                "Inspect an event stream.");
     module.def("count",
                &py_count,
