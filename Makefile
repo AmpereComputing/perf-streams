@@ -177,11 +177,19 @@ lint: .require-clean
 	$(MAKE) .python-lint
 	$(MAKE) .python-format
 
+.PHONY: lint-all
+lint-all: lint
+	$(MAKE) clang-tidy
+
 .PHONY: check
 check:
 	$(MAKE) clang-format-check
 	$(MAKE) python-lint-check
 	$(MAKE) python-format-check
+
+.PHONY: check-all
+check-all: check
+	$(MAKE) clang-tidy-check
 
 .PHONY: package
 package:
