@@ -21,7 +21,7 @@ except ImportError as exc:
     FastMCP = None
 
 
-def event_stream_inspect(
+def inspect(
     path: str,
     include_values: bool = True,
     include_params: bool = True,
@@ -38,7 +38,7 @@ def event_stream_inspect(
     )
 
 
-def event_stream_count(  # noqa: PLR0913
+def count(  # noqa: PLR0913
     path: str,
     events: list[str] | str | None = None,
     exclude: list[str] | str | None = None,
@@ -81,7 +81,7 @@ def event_stream_count(  # noqa: PLR0913
     )
 
 
-def event_stream_latency(
+def latency(
     path: str,
     events: list[str],
     name: str | None = None,
@@ -98,7 +98,7 @@ def event_stream_latency(
     )
 
 
-def event_stream_rate(
+def rate(
     path: str,
     interval: str,
     events: list[str] | str,
@@ -107,7 +107,7 @@ def event_stream_rate(
     return _event_stream_mcp.rate(path, interval, events)
 
 
-def event_stream_params(
+def params(
     path: str,
     params: list[str] | str | None = None,
     all: bool = False,  # noqa: A002
@@ -124,7 +124,7 @@ def event_stream_params(
     )
 
 
-def event_stream_sample(
+def sample(
     path: str,
     events: list[str] | str | None = None,
     start: int | str | None = None,
@@ -141,7 +141,7 @@ def event_stream_sample(
     )
 
 
-def event_stream_cache(action: str = "stats", path: str | None = None, memory_budget: int = 0) -> dict[str, Any]:
+def cache(action: str = "stats", path: str | None = None, memory_budget: int = 0) -> dict[str, Any]:
     """Return cache stats or clear/configure the cache."""
     return _event_stream_mcp.cache(action, path=path, memory_budget=memory_budget)
 
@@ -152,13 +152,13 @@ def _run_mcp_server() -> int:
         return 1
 
     server = FastMCP("perf-streams-event-stream")
-    server.tool()(event_stream_inspect)
-    server.tool()(event_stream_count)
-    server.tool()(event_stream_latency)
-    server.tool()(event_stream_rate)
-    server.tool()(event_stream_params)
-    server.tool()(event_stream_sample)
-    server.tool()(event_stream_cache)
+    server.tool()(inspect)
+    server.tool()(count)
+    server.tool()(latency)
+    server.tool()(rate)
+    server.tool()(params)
+    server.tool()(sample)
+    server.tool()(cache)
     server.run(transport="stdio")
     return 0
 
