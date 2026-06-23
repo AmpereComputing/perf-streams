@@ -590,7 +590,7 @@ std::vector<Metric> rate_for_event_interval(const StreamCache& stream, const Rat
     std::map<std::string, double> metrics;
     for (const auto& [name, rates] : histogram) {
         for (const auto& [rate, count] : rates) {
-            metrics[processor_plugins::histogram_metric_name(name, options.suffix, rate, options.factored)] = count;
+            metrics[processor_plugins::histogram_metric_name(name, options.suffix, rate, false)] = count;
         }
     }
     return metric_map_to_vector(metrics);
@@ -629,7 +629,7 @@ std::vector<Metric> rate_for_time_interval(const StreamCache& stream, uint64_t i
     std::map<std::string, double> metrics;
     for (const auto& [name, rates] : histogram) {
         for (const auto& [rate, count] : rates) {
-            metrics[processor_plugins::histogram_metric_name(name, options.suffix, rate, options.factored)] = count;
+            metrics[processor_plugins::histogram_metric_name(name, options.suffix, rate, false)] = count;
         }
     }
     return metric_map_to_vector(metrics);
@@ -945,7 +945,7 @@ LatencyResult latency(const fs::path& path, const LatencyOptions& options)
                                               aggregated_info.front(),
                                               aggregated_hist_info.front(),
                                               histogram_metric_name,
-                                              options.factored,
+                                              false,
                                               "",
                                               !histogram_metric_name.empty());
 
@@ -956,7 +956,7 @@ LatencyResult latency(const fs::path& path, const LatencyOptions& options)
                                                       aggregated_info[idx],
                                                       aggregated_hist_info[idx],
                                                       histogram_metric_name,
-                                                      options.factored,
+                                                      false,
                                                       aliases[idx],
                                                       !histogram_metric_name.empty());
         }

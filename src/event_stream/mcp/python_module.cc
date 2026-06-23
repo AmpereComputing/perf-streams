@@ -247,7 +247,6 @@ py::dict py_latency(const std::string& path,
                     const py::object& key,
                     const py::object& prefix,
                     const py::object& histogram,
-                    bool factored,
                     bool ignore_missing)
 {
     mcp::LatencyOptions options;
@@ -260,7 +259,6 @@ py::dict py_latency(const std::string& path,
         options.prefix = py::cast<std::string>(prefix);
     if (!histogram.is_none())
         options.histogram = py::cast<std::string>(histogram);
-    options.factored = factored;
     options.ignore_missing = ignore_missing;
 
     auto result = mcp::latency(path, options);
@@ -271,14 +269,12 @@ py::dict py_latency(const std::string& path,
 py::dict py_rate(const std::string& path,
                  const std::string& interval,
                  const py::object& events,
-                 const std::string& suffix,
-                 bool factored)
+                 const std::string& suffix)
 {
     mcp::RateOptions options;
     options.interval = interval;
     options.events = py_strings(events);
     options.suffix = suffix;
-    options.factored = factored;
 
     auto result = mcp::rate(path, options);
 
@@ -382,7 +378,6 @@ PYBIND11_MODULE(_event_stream_mcp, module)
                py::arg("key") = py::none(),
                py::arg("prefix") = py::none(),
                py::arg("histogram") = py::none(),
-               py::arg("factored") = false,
                py::arg("ignore_missing") = false,
                "Measure event stream latency.");
     module.def("rate",
@@ -391,7 +386,6 @@ PYBIND11_MODULE(_event_stream_mcp, module)
                py::arg("interval"),
                py::arg("events"),
                py::arg("suffix") = "rate",
-               py::arg("factored") = false,
                "Measure event stream rates.");
     module.def("params",
                &py_params,
