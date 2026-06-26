@@ -744,6 +744,54 @@ a_b/latency:200     1
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, CanMeasureOccupancy)
+{
+    auto output = run(fmt::format("--es {} +occupancy alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(occupancy.0 30
+occupancy.1 45
+occupancy.2 15
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, CanMeasureNamedOccupancy)
+{
+    auto output = run(fmt::format("--es {} +occupancy -n slots alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(slots.0 30
+slots.1 45
+slots.2 15
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, CanMeasureFactoredOccupancy)
+{
+    auto output =
+        run(fmt::format("--es {} +occupancy --factored -n slots alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(slots/occupancy:0 30
+slots/occupancy:1 45
+slots/occupancy:2 15
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, CanMeasureOccupancyTimeSeries)
+{
+    auto ts_file = test_file("ts.csv");
+    auto output = run(fmt::format(
+        "--es {} -i 30 +occupancy alloc dealloc +summarize --timeseries {}", build_es("occupancy.in"), ts_file));
+
+    const auto* expected = R"(start_time,stop_time,occupancy.0,occupancy.1,occupancy.2
+10,29,0,10,9
+30,59,9,15,6
+60,89,21,9,0
+90,100,0,11,0
+)";
+
+    auto actual = read_and_remove_file(ts_file);
+    EXPECT_EQ(actual, expected);
+}
+
 TEST_F(EVPTest, Python)
 {
     auto output = run(fmt::format("--es {} +python {}", build_es("basic.in"), config("pytest.py")));
