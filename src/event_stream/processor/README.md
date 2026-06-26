@@ -156,6 +156,35 @@ has been reached. This is useful in cases where you don't wish to wait until the
 end of normal simulation to stop the model run (i.e. you're collecting some data
 for debug and don't care about events past the region of interest).
 
+#### Parameter Expansion
+
+After `evp` opens the event stream and reads its preamble, command-line
+arguments can refer to stream parameters using `{parameter_name}`. Expansion is
+available in plugin arguments and in these global option values:
+
+* `-i <interval>`
+* `--start <trigger>`
+* `--stop <trigger>`
+* `-s <name>=<value>`
+
+For example, if the stream records `core.machine_width=4`, the following passes
+`prefix-4` to the Python plugin:
+
+    evp --es run.es +python script.py prefix-{core.machine_width}
+
+Expansion can also be used to choose parameters or set plugin-visible globals:
+
+    evp --es run.es +param -p {param_to_report} +summarize
+    evp --es run.es -s width={core.machine_width} +python script.py
+
+Every balanced, non-empty `{name}` reference inside an expandable argument is
+replaced. Multiple references may appear in the same argument. Unknown
+parameters are an error.
+
+Expansion is not available for options that must be resolved before the stream
+is opened, including `--es`, `--in_fd`, `--out_fd`, config file names, config
+paths, Python paths, `--help`, and `--dump`.
+
 #### Start/Stop Triggers
 
 A trigger is either a time value, or the value of a particular metric that can
