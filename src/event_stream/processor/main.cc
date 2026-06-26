@@ -205,6 +205,69 @@ std::tuple<Args, PluginsWithArgs> partition_args(int argc, const char** argv)
     return {prog_args, plugins};
 }
 
+std::string parameter_as_cli_literal(const Parameter& parameter)
+{
+    switch (parameter.value_case()) {
+    case event_stream_proto::Parameter::kBoolValue:
+        return parameter.bool_value() ? "true" : "false";
+    case event_stream_proto::Parameter::kIntValue:
+        return fmt::format("{}", parameter.int_value());
+    case event_stream_proto::Parameter::kUintValue:
+        return fmt::format("{}", parameter.uint_value());
+    case event_stream_proto::Parameter::kDoubleValue:
+        return fmt::format("{}", parameter.double_value());
+    case event_stream_proto::Parameter::kStringValue:
+        return parameter.string_value();
+    case event_stream_proto::Parameter::kJsonValue:
+        return parameter.json_value();
+    case event_stream_proto::Parameter::VALUE_NOT_SET:
+        break;
+    }
+
+    throw std::runtime_error{fmt::format("parameter \"{}\" has no value", parameter.name())};
+}
+
+std::string expand_parameter_refs(const std::string& arg, const Processor& processor)
+{
+    std::string expanded;
+    size_t pos = 0;
+
+    while (pos < arg.size()) {
+        auto const open = arg.find('{', pos);
+        if (open == std::string::npos) {
+            expanded.append(arg, pos, std::string::npos);
+            break;
+        }
+
+        auto const close = arg.find('}', open + 1);
+        if (close == std::string::npos) {
+            expanded.append(arg, pos, std::string::npos);
+            break;
+        }
+
+        expanded.append(arg, pos, open - pos);
+        auto const name = arg.substr(open + 1, close - open - 1);
+        if (name.empty()) {
+            expanded.append(arg, open, close - open + 1);
+        } else {
+            if (!processor.has_parameter(name))
+                throw std::runtime_error{fmt::format("parameter \"{}\" not found for argument expansion", name)};
+
+            expanded += parameter_as_cli_literal(processor.get_parameter(name));
+        }
+        pos = close + 1;
+    }
+
+    return expanded;
+}
+
+void expand_plugin_args(PluginsWithArgs& plugins, const Processor& processor)
+{
+    for (auto& plugin : plugins) {
+        plugin.args.transform([&](const std::string& arg) { return expand_parameter_refs(arg, processor); });
+    }
+}
+
 /** Create a new plugin with associated arguments.
  *
  *  The plugin must have previously registered itself in the global
@@ -353,6 +416,7 @@ int main(int argc, const char** argv)
         std::string input_es;
         std::string interval;
         std::map<std::string, std::string> variables;
+        std::map<std::string, std::string> no_variables;
         std::string start;
         std::string stop;
         bool exit_after_stop = false;
@@ -398,11 +462,19 @@ int main(int argc, const char** argv)
         std::unique_ptr<Processor> processor;
 
         if (!input_es.empty())
-            processor = std::make_unique<Processor>(input_es, variables);
+            processor = std::make_unique<Processor>(input_es, no_variables);
         else
-            processor = std::make_unique<Processor>(in_fd, out_fd, variables);
+            processor = std::make_unique<Processor>(in_fd, out_fd, no_variables);
 
         processor->initialize();
+
+        interval = expand_parameter_refs(interval, *processor);
+        start = expand_parameter_refs(start, *processor);
+        stop = expand_parameter_refs(stop, *processor);
+        for (auto& [name, value] : variables)
+            value = expand_parameter_refs(value, *processor);
+        processor->set_variables(variables);
+        expand_plugin_args(plugins, *processor);
 
         CounterSet skip_counters;
         uint64_t skip_time = 0;

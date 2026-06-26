@@ -820,6 +820,58 @@ TEST_F(EVPTest, TestVariables)
     EXPECT_EQ(output, "hello world\n");
 }
 
+TEST_F(EVPTest, ExpandsParameterInParamPluginArgument)
+{
+    auto output = run(fmt::format("--es {} +param -p {{report_param}} +summarize", build_es("expansion.in")));
+    EXPECT_EQ(output, "three four\n");
+}
+
+TEST_F(EVPTest, ExpandsParameterSubstringsInPythonArguments)
+{
+    auto output = run(fmt::format("--es {} +python {} prefix-{{core.machine_width}} --time {{core.rob.size}}",
+                                  build_es("expansion.in"),
+                                  config("arguments.py")));
+    EXPECT_EQ(output, "Goodbye, prefix-4! It is 192\n");
+}
+
+TEST_F(EVPTest, ExpandsMultipleParametersInOneArgument)
+{
+    auto output =
+        run(fmt::format("--es {} +python {} {{core.machine_width}}-{{three}}-{{core.machine_width}} --time noon",
+                        build_es("expansion.in"),
+                        config("arguments.py")));
+    EXPECT_EQ(output, "Goodbye, 4-four-4! It is noon\n");
+}
+
+TEST_F(EVPTest, ExpandsParameterInVariables)
+{
+    auto output = run(fmt::format(
+        "--es {} -s hello_to={{hello_value}} -P python {}", build_es("expansion.in"), config("say_hello.py")));
+    EXPECT_EQ(output, "hello world\n");
+}
+
+TEST_F(EVPTest, ExpandsParameterInStart)
+{
+    auto summary_file = test_file("summary.csv");
+    auto output = run(fmt::format(
+        "--es {} --start {{start_time}} +count -a +summarize --summary {}", build_es("expansion.in"), summary_file));
+
+    const auto* expected = R"(start_time,stop_time,one,two
+200,300,1,1
+)";
+
+    auto actual = read_and_remove_file(summary_file);
+    EXPECT_EQ(actual, expected);
+}
+
+TEST_F(EVPTest, MissingExpansionParameterIsAnError)
+{
+    auto output = run_expecting_error(
+        fmt::format("--es {} +python {} {{does.not.exist}}", build_es("basic.in"), config("arguments.py")));
+    EXPECT_THAT(output, ::testing::HasSubstr("Error: "));
+    EXPECT_THAT(output, ::testing::HasSubstr("parameter \"does.not.exist\" not found"));
+}
+
 TEST_F(EVPTest, TestHelp)
 {
     auto output_h = run_expecting_error("-h");

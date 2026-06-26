@@ -119,8 +119,7 @@ Processor::Processor(int in_fd, int out_fd, const std::map<std::string, std::str
         response_stream = std::make_unique<protobuf_utils::ProtobufStreamWriter>(
             out_fd, event_stream::protobuf_magic, event_stream::protobuf_es_version);
 
-    for (const auto& [name, value] : variables)
-        variables_for_fmt.push_back(fmt::arg(name.c_str(), value));
+    rebuild_variables_for_fmt();
 }
 
 /** Create the event stream processor from a file name.
@@ -133,6 +132,25 @@ Processor::Processor(const std::string& fname, const std::map<std::string, std::
 {
     input_stream = std::make_unique<protobuf_utils::ProtobufStreamReader>(
         fname, event_stream::protobuf_magic, event_stream::protobuf_es_version);
+
+    rebuild_variables_for_fmt();
+}
+
+void Processor::set_variables(const std::map<std::string, std::string>& new_variables)
+{
+    variables = new_variables;
+    rebuild_variables_for_fmt();
+}
+
+void Processor::set_variable(const std::string& name, const std::string& value)
+{
+    variables[name] = value;
+    rebuild_variables_for_fmt();
+}
+
+void Processor::rebuild_variables_for_fmt()
+{
+    variables_for_fmt.clear();
 
     for (const auto& [name, value] : variables)
         variables_for_fmt.push_back(fmt::arg(name.c_str(), value));
