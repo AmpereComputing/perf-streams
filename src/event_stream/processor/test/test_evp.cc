@@ -822,22 +822,27 @@ TEST_F(EVPTest, TestVariables)
 
 TEST_F(EVPTest, ExpandsParameterInParamPluginArgument)
 {
-    auto output = run(fmt::format("--es {} +param -p {{report_param}} +summarize", build_es("expansion.in")));
+    auto output =
+        run(fmt::format("--es {} +param -p '{{{{ param.report_param }}}}' +summarize", build_es("expansion.in")));
     EXPECT_EQ(output, "three four\n");
 }
 
 TEST_F(EVPTest, ExpandsParameterSubstringsInPythonArguments)
 {
-    auto output = run(fmt::format("--es {} +python {} prefix-{{core.machine_width}} --time {{core.rob.size}}",
-                                  build_es("expansion.in"),
-                                  config("arguments.py")));
+    auto output =
+        run(fmt::format("--es {} +python {} 'prefix-{{{{param.core.machine_width}}}}' "
+                        "--time '{{{{param.core.rob.size}}}}'",
+                        build_es("expansion.in"),
+                        config("arguments.py")));
     EXPECT_EQ(output, "Goodbye, prefix-4! It is 192\n");
 }
 
 TEST_F(EVPTest, ExpandsMultipleParametersInOneArgument)
 {
     auto output =
-        run(fmt::format("--es {} +python {} {{core.machine_width}}-{{three}}-{{core.machine_width}} --time noon",
+        run(fmt::format("--es {} +python {} "
+                        "'{{{{ param.core.machine_width }}}}-{{{{ param.three }}}}-"
+                        "{{{{ param.core.machine_width }}}}' --time noon",
                         build_es("expansion.in"),
                         config("arguments.py")));
     EXPECT_EQ(output, "Goodbye, 4-four-4! It is noon\n");
@@ -845,16 +850,51 @@ TEST_F(EVPTest, ExpandsMultipleParametersInOneArgument)
 
 TEST_F(EVPTest, ExpandsParameterInVariables)
 {
-    auto output = run(fmt::format(
-        "--es {} -s hello_to={{hello_value}} -P python {}", build_es("expansion.in"), config("say_hello.py")));
+    auto output = run(fmt::format("--es {} -s hello_to='{{{{ param.hello_value }}}}' -P python {}",
+                                  build_es("expansion.in"),
+                                  config("say_hello.py")));
     EXPECT_EQ(output, "hello world\n");
+}
+
+TEST_F(EVPTest, ExpandsArgumentInPluginArgument)
+{
+    auto output = run(fmt::format("--es {} -s location=Portland +python {} '{{{{ location }}}}' --time noon",
+                                  build_es("expansion.in"),
+                                  config("arguments.py")));
+    EXPECT_EQ(output, "Goodbye, Portland! It is noon\n");
+}
+
+TEST_F(EVPTest, ExpandsArgumentFromParameterInPluginArgument)
+{
+    auto output =
+        run(fmt::format("--es {} -s width='{{{{ param.core.machine_width }}}}' "
+                        "+python {} 'width-{{{{ width }}}}' --time noon",
+                        build_es("expansion.in"),
+                        config("arguments.py")));
+    EXPECT_EQ(output, "Goodbye, width-4! It is noon\n");
 }
 
 TEST_F(EVPTest, ExpandsParameterInStart)
 {
     auto summary_file = test_file("summary.csv");
-    auto output = run(fmt::format(
-        "--es {} --start {{start_time}} +count -a +summarize --summary {}", build_es("expansion.in"), summary_file));
+    auto output = run(fmt::format("--es {} --start '{{{{ param.start_time }}}}' +count -a +summarize --summary {}",
+                                  build_es("expansion.in"),
+                                  summary_file));
+
+    const auto* expected = R"(start_time,stop_time,one,two
+200,300,1,1
+)";
+
+    auto actual = read_and_remove_file(summary_file);
+    EXPECT_EQ(actual, expected);
+}
+
+TEST_F(EVPTest, ExpandsArgumentInStart)
+{
+    auto summary_file = test_file("summary.csv");
+    auto output = run(fmt::format("--es {} -s begin=200 --start '{{{{ begin }}}}' +count -a +summarize --summary {}",
+                                  build_es("expansion.in"),
+                                  summary_file));
 
     const auto* expected = R"(start_time,stop_time,one,two
 200,300,1,1
@@ -866,10 +906,57 @@ TEST_F(EVPTest, ExpandsParameterInStart)
 
 TEST_F(EVPTest, MissingExpansionParameterIsAnError)
 {
-    auto output = run_expecting_error(
-        fmt::format("--es {} +python {} {{does.not.exist}}", build_es("basic.in"), config("arguments.py")));
+    auto output = run_expecting_error(fmt::format(
+        "--es {} +python {} '{{{{ param.does.not.exist }}}}'", build_es("basic.in"), config("arguments.py")));
     EXPECT_THAT(output, ::testing::HasSubstr("Error: "));
     EXPECT_THAT(output, ::testing::HasSubstr("parameter \"does.not.exist\" not found"));
+}
+
+TEST_F(EVPTest, MissingExpansionArgumentIsAnError)
+{
+    auto output = run_expecting_error(
+        fmt::format("--es {} +python {} '{{{{ missing }}}}'", build_es("basic.in"), config("arguments.py")));
+    EXPECT_THAT(output, ::testing::HasSubstr("Error: "));
+    EXPECT_THAT(output, ::testing::HasSubstr("argument \"missing\" not found"));
+}
+
+TEST_F(EVPTest, EmptyExpansionIsAnError)
+{
+    auto output = run_expecting_error(
+        fmt::format("--es {} +python {} '{{{{ }}}}'", build_es("basic.in"), config("arguments.py")));
+    EXPECT_THAT(output, ::testing::HasSubstr("Error: "));
+    EXPECT_THAT(output, ::testing::HasSubstr("empty argument expansion"));
+}
+
+TEST_F(EVPTest, UnmatchedExpansionIsAnError)
+{
+    auto output = run_expecting_error(
+        fmt::format("--es {} +python {} '{{{{ missing'", build_es("basic.in"), config("arguments.py")));
+    EXPECT_THAT(output, ::testing::HasSubstr("Error: "));
+    EXPECT_THAT(output, ::testing::HasSubstr("unmatched \"{{\""));
+}
+
+TEST_F(EVPTest, OldSingleBraceParameterExpansionIsNotSupported)
+{
+    auto output = run(fmt::format("--es {} +python {} '{{param.core.machine_width}}' --time noon",
+                                  build_es("expansion.in"),
+                                  config("arguments.py")));
+    EXPECT_EQ(output, "Goodbye, {param.core.machine_width}! It is noon\n");
+}
+
+TEST_F(EVPTest, ParamPrefixIsReservedForArguments)
+{
+    auto output = run_expecting_error(fmt::format("--es {} -s param.foo=bar +count -a", build_es("basic.in")));
+    EXPECT_THAT(output, ::testing::HasSubstr("Error: "));
+    EXPECT_THAT(output, ::testing::HasSubstr("reserved prefix \"param.\""));
+}
+
+TEST_F(EVPTest, CyclicArgumentExpansionIsAnError)
+{
+    auto output = run_expecting_error(
+        fmt::format("--es {} -s one='{{{{ two }}}}' -s two='{{{{ one }}}}' +count -a", build_es("basic.in")));
+    EXPECT_THAT(output, ::testing::HasSubstr("Error: "));
+    EXPECT_THAT(output, ::testing::HasSubstr("cycle detected while expanding argument"));
 }
 
 TEST_F(EVPTest, TestHelp)
