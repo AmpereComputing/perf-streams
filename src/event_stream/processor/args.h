@@ -33,7 +33,7 @@ public:
     const std::string& front() const { return arg_list.front(); }
 
     template<typename Transform>
-    void transform(Transform transform_arg);
+    void transform(Transform transform_func);
 
     void done();
 
@@ -113,10 +113,10 @@ bool Args::pop_any(T& any_arg)
 }
 
 template<typename Transform>
-void Args::transform(Transform transform_arg)
+void Args::transform(Transform transform_func)
 {
     for (auto& arg : arg_list)
-        arg = transform_arg(arg);
+        arg = transform_func(arg);
 }
 
 } // namespace perf_streams::event_stream::processor

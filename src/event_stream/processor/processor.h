@@ -36,8 +36,8 @@ class CounterSpec;
 class Processor : public ProcessorIfc
 {
 public:
-    Processor(int in_fd, int out_fd, const std::map<std::string, std::string>& variables);
-    Processor(const std::string& fname, const std::map<std::string, std::string>& variables);
+    Processor(int in_fd, int out_fd, const std::map<std::string, std::string>& variables = {});
+    explicit Processor(const std::string& fname, const std::map<std::string, std::string>& variables = {});
 
     void initialize();
     void start();
