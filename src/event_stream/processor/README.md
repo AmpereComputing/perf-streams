@@ -183,7 +183,6 @@ inside the braces is ignored. Stream parameters must be referenced as
 `{{ param.<parameter name> }}`. Arguments supplied through `-s <name>=<value>`
 are referenced as `{{ <name> }}`. Argument names may not be empty or start with
 the reserved prefix `param.`. Unknown parameters or arguments are errors.
-Legacy single-brace `{name}` text is not expanded.
 
 Expansion is not available for options that must be resolved before the stream
 is opened, including `--es`, `--in_fd`, `--out_fd`, config file names, config

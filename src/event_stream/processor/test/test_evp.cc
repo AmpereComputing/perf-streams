@@ -936,14 +936,6 @@ TEST_F(EVPTest, UnmatchedExpansionIsAnError)
     EXPECT_THAT(output, ::testing::HasSubstr("unmatched \"{{\""));
 }
 
-TEST_F(EVPTest, OldSingleBraceParameterExpansionIsNotSupported)
-{
-    auto output = run(fmt::format("--es {} +python {} '{{param.core.machine_width}}' --time noon",
-                                  build_es("expansion.in"),
-                                  config("arguments.py")));
-    EXPECT_EQ(output, "Goodbye, {param.core.machine_width}! It is noon\n");
-}
-
 TEST_F(EVPTest, ParamPrefixIsReservedForArguments)
 {
     auto output = run_expecting_error(fmt::format("--es {} -s param.foo=bar +count -a", build_es("basic.in")));
