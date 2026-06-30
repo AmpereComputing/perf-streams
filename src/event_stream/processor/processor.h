@@ -44,8 +44,8 @@ public:
     void process();
     void collect(uint64_t trigger_time = 0);
     void report();
+
     void set_variables(const std::map<std::string, std::string>& new_variables);
-    void set_variable(const std::string& name, const std::string& value);
 
     void skip(uint64_t max_time = 0, CounterSet* including = nullptr);
     void stop_skipping();

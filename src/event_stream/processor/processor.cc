@@ -142,12 +142,6 @@ void Processor::set_variables(const std::map<std::string, std::string>& new_vari
     rebuild_variables_for_fmt();
 }
 
-void Processor::set_variable(const std::string& name, const std::string& value)
-{
-    variables[name] = value;
-    rebuild_variables_for_fmt();
-}
-
 void Processor::rebuild_variables_for_fmt()
 {
     variables_for_fmt.clear();
