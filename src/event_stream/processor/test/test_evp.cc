@@ -1283,6 +1283,12 @@ TEST_F(EVPTest, CanMeasureRateWithinEmptyTimeIntervals)
     EXPECT_EQ(output, "a.rate.0 2\na.rate.1 3\n");
 }
 
+TEST_F(EVPTest, CanMeasureRateWithinEmptyFinalTimeInterval)
+{
+    auto output = run(fmt::format("--es {} +rate 100 -e one +summarize", build_es("basic.in")));
+    EXPECT_EQ(output, "one.rate.0 1\none.rate.1 2\n");
+}
+
 TEST_F(EVPTest, RateWithZeroTimeIntervalIsAnError)
 {
     auto output = run_expecting_error(fmt::format("--es {} +rate 0 -e a +summarize", build_es("series.in")));
