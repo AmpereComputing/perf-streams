@@ -1271,6 +1271,18 @@ TEST_F(EVPTest, CanMeasureRateWithinTime)
     EXPECT_EQ(output, "a.rate.1 1\na.rate.3 2\na.rate.5 1\n");
 }
 
+TEST_F(EVPTest, CanNameRateWithShortOption)
+{
+    auto output = run(fmt::format("--es {} +rate 30 -n named -e a +summarize", build_es("series.in")));
+    EXPECT_EQ(output, "a.named.1 1\na.named.3 2\na.named.5 1\n");
+}
+
+TEST_F(EVPTest, CanNameRateWithLongOption)
+{
+    auto output = run(fmt::format("--es {} +rate 30 --name named -e a +summarize", build_es("series.in")));
+    EXPECT_EQ(output, "a.named.1 1\na.named.3 2\na.named.5 1\n");
+}
+
 TEST_F(EVPTest, CanMeasureRateWithinTimeFactored)
 {
     auto output = run(fmt::format("--es {} +rate 30 --factored -e a +summarize", build_es("series.in")));

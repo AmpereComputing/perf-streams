@@ -64,7 +64,7 @@ Rate::Rate(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
         std::string arg;
         if (args.pop("--factored")) {
             factored = true;
-        } else if (args.pop("-s|--suffix", name)) {
+        } else if (args.pop("-n|--name", name)) {
             counters.emplace_back(name, CounterSet{});
         } else if (args.pop("-e|--event", arg)) {
             if (counters.empty())
@@ -136,7 +136,7 @@ void Rate::collect(MetricSeries& metrics, uint64_t trigger_time)
 
 void Rate::help(int argc, const char** argv)
 {
-    print_help(argv[0], "rate", "<interval> [--factored] [-n, --name <name> ] [-e|--event <event>]", R"(Arguments:
+    print_help(argv[0], "rate", "<interval> [--factored] [-n|--name <name>] [-e|--event <event>]", R"(Arguments:
 
     <interval>          Event to consider beginning of rate measurement
     --factored          Emit events as factored instead of suffix
