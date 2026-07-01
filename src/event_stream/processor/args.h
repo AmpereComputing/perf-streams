@@ -32,6 +32,9 @@ public:
 
     const std::string& front() const { return arg_list.front(); }
 
+    template<typename Transform>
+    void transform(Transform transform_func);
+
     void done();
 
     explicit operator bool() const { return !arg_list.empty(); }
@@ -107,6 +110,13 @@ bool Args::pop_any(T& any_arg)
     }
 
     return false;
+}
+
+template<typename Transform>
+void Args::transform(Transform transform_func)
+{
+    for (auto& arg : arg_list)
+        arg = transform_func(arg);
 }
 
 } // namespace perf_streams::event_stream::processor

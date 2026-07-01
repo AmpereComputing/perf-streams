@@ -57,7 +57,7 @@ debug: build-debug
 
 .PHONY: clang
 clang: .force
-	CC=clang CXX=clang++ $(MAKE) build-$(DEFAULT_BUILD_TYPE)-clang
+	CC=clang CXX=clang++ $(MAKE) build-$(DEFAULT_BUILD_TYPE)-clang CMAKE_ARGS="-D CLANG_TIDY=OFF"
 
 install-%: .force
 	$(MAKE) build-$* TARGET=install

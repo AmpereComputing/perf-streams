@@ -20,6 +20,7 @@
 #include <fmt/ostream.h>
 #include <fmt/ranges.h>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -29,9 +30,11 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 template<>
 struct fmt::formatter<std::filesystem::path> : fmt::ostream_formatter
@@ -138,6 +141,16 @@ struct PluginWithArgs
 
 using PluginsWithArgs = std::list<PluginWithArgs>;
 
+struct ArgumentExpansionRef
+{
+    static constexpr std::string_view open_delimiter = "{{";
+    static constexpr size_t open_delimiter_size = open_delimiter.size();
+    static constexpr std::string_view close_delimiter = "}}";
+    static constexpr size_t close_delimiter_size = close_delimiter.size();
+    static constexpr std::string_view parameter_prefix = "param.";
+    static constexpr size_t parameter_prefix_size = parameter_prefix.size();
+};
+
 /** Partition command line arguments into program arguments and plugin
  *  arguments.
  *
@@ -203,6 +216,152 @@ std::tuple<Args, PluginsWithArgs> partition_args(int argc, const char** argv)
     }
 
     return {prog_args, plugins};
+}
+
+std::string parameter_as_cli_literal(const Parameter& parameter)
+{
+    switch (parameter.value_case()) {
+    case event_stream_proto::Parameter::kBoolValue:
+        return parameter.bool_value() ? "true" : "false";
+    case event_stream_proto::Parameter::kIntValue:
+        return fmt::format("{}", parameter.int_value());
+    case event_stream_proto::Parameter::kUintValue:
+        return fmt::format("{}", parameter.uint_value());
+    case event_stream_proto::Parameter::kDoubleValue:
+        return fmt::format("{}", parameter.double_value());
+    case event_stream_proto::Parameter::kStringValue:
+        return parameter.string_value();
+    case event_stream_proto::Parameter::kJsonValue:
+        return parameter.json_value();
+    case event_stream_proto::Parameter::VALUE_NOT_SET:
+        break;
+    }
+
+    throw std::runtime_error{fmt::format("parameter \"{}\" has no value", parameter.name())};
+}
+
+std::string trim_whitespace(std::string s)
+{
+    auto const first = s.find_first_not_of(" \t\n\r\f\v");
+    if (first == std::string::npos)
+        return {};
+
+    auto const last = s.find_last_not_of(" \t\n\r\f\v");
+    return s.substr(first, last - first + 1);
+}
+
+std::string resolve_parameter_ref(const std::string& name, const Processor& processor)
+{
+    if (name.empty())
+        throw std::runtime_error{"parameter name is empty in argument expansion"};
+    if (!processor.has_parameter(name))
+        throw std::runtime_error{fmt::format("parameter \"{}\" not found for argument expansion", name)};
+
+    return parameter_as_cli_literal(processor.get_parameter(name));
+}
+
+template<typename Resolve>
+std::string expand_argument_refs(const std::string& arg, Resolve resolve)
+{
+    std::string expanded;
+
+    for (size_t pos = 0; pos < arg.size();) {
+        auto const open = arg.find(ArgumentExpansionRef::open_delimiter, pos);
+        auto const close_before_open = arg.find(ArgumentExpansionRef::close_delimiter, pos);
+        if (close_before_open != std::string::npos && (open == std::string::npos || close_before_open < open))
+            throw std::runtime_error{
+                fmt::format("unmatched \"{}\" in argument expansion", ArgumentExpansionRef::close_delimiter)};
+
+        if (open == std::string::npos) {
+            expanded.append(arg, pos, std::string::npos);
+            break;
+        }
+
+        auto const close =
+            arg.find(ArgumentExpansionRef::close_delimiter, open + ArgumentExpansionRef::open_delimiter_size);
+        if (close == std::string::npos)
+            throw std::runtime_error{
+                fmt::format("unmatched \"{}\" in argument expansion", ArgumentExpansionRef::open_delimiter)};
+
+        expanded.append(arg, pos, open - pos);
+        auto const name = trim_whitespace(arg.substr(open + ArgumentExpansionRef::open_delimiter_size,
+                                                     close - open - ArgumentExpansionRef::open_delimiter_size));
+        if (name.empty())
+            throw std::runtime_error{"empty argument expansion"};
+
+        expanded += resolve(name);
+        pos = close + ArgumentExpansionRef::close_delimiter_size;
+    }
+
+    return expanded;
+}
+
+std::string resolve_arg_ref(const std::string& name, const std::map<std::string, std::string>& variables)
+{
+    if (auto it = variables.find(name); it != variables.end())
+        return it->second;
+
+    throw std::runtime_error{fmt::format("argument \"{}\" not found for argument expansion", name)};
+}
+
+template<typename ResolveArgument>
+std::string resolve_expansion_ref(const std::string& name, const Processor& processor, ResolveArgument resolve_func)
+{
+    if (name.starts_with(ArgumentExpansionRef::parameter_prefix))
+        return resolve_parameter_ref(name.substr(ArgumentExpansionRef::parameter_prefix_size), processor);
+
+    return resolve_func(name);
+}
+
+std::string expand_cli_arg_refs(const std::string& arg,
+                                const Processor& processor,
+                                const std::map<std::string, std::string>& variables)
+{
+    return expand_argument_refs(arg, [&](const std::string& name) {
+        return resolve_expansion_ref(name, processor, [&](const std::string& variable_name) {
+            return resolve_arg_ref(variable_name, variables);
+        });
+    });
+}
+
+std::map<std::string, std::string> expand_variables(const std::map<std::string, std::string>& variables,
+                                                    const Processor& processor)
+{
+    std::map<std::string, std::string> expanded_variables;
+    std::vector<std::string> expanding;
+    std::function<std::string(const std::string&)> expand_variable;
+
+    expand_variable = [&](const std::string& name) {
+        if (auto it = expanded_variables.find(name); it != expanded_variables.end())
+            return it->second;
+        if (std::ranges::find(expanding, name) != expanding.end())
+            throw std::runtime_error{fmt::format("cycle detected while expanding argument \"{}\"", name)};
+        if (!variables.contains(name))
+            return resolve_arg_ref(name, variables);
+
+        expanding.push_back(name);
+        auto const expanded = expand_argument_refs(variables.at(name), [&](const std::string& ref_name) {
+            return resolve_expansion_ref(ref_name, processor, expand_variable);
+        });
+        expanding.pop_back();
+
+        expanded_variables[name] = expanded;
+        return expanded;
+    };
+
+    for (const auto& name : std::views::keys(variables))
+        expand_variable(name);
+
+    return expanded_variables;
+}
+
+void expand_plugin_args(PluginsWithArgs& plugins,
+                        const Processor& processor,
+                        const std::map<std::string, std::string>& variables)
+{
+    for (auto& plugin : plugins) {
+        plugin.args.transform([&](const std::string& arg) { return expand_cli_arg_refs(arg, processor, variables); });
+    }
 }
 
 /** Create a new plugin with associated arguments.
@@ -387,6 +546,13 @@ int main(int argc, const char** argv)
                         fmt::format("variable setting should be <name>=<value> (got \"{}\")", var_setting));
                 auto var = var_setting.substr(0, pos);
                 auto value = var_setting.substr(pos + 1);
+                if (var.empty())
+                    throw std::runtime_error{
+                        fmt::format("variable setting should be <name>=<value> (got \"{}\")", var_setting)};
+                if (var.starts_with(ArgumentExpansionRef::parameter_prefix))
+                    throw std::runtime_error{fmt::format(R"(argument name "{}" cannot start with reserved prefix "{}")",
+                                                         var,
+                                                         ArgumentExpansionRef::parameter_prefix)};
                 variables[var] = value;
             } else {
                 break;
@@ -398,11 +564,18 @@ int main(int argc, const char** argv)
         std::unique_ptr<Processor> processor;
 
         if (!input_es.empty())
-            processor = std::make_unique<Processor>(input_es, variables);
+            processor = std::make_unique<Processor>(input_es);
         else
-            processor = std::make_unique<Processor>(in_fd, out_fd, variables);
+            processor = std::make_unique<Processor>(in_fd, out_fd);
 
         processor->initialize();
+
+        variables = expand_variables(variables, *processor);
+        interval = expand_cli_arg_refs(interval, *processor, variables);
+        start = expand_cli_arg_refs(start, *processor, variables);
+        stop = expand_cli_arg_refs(stop, *processor, variables);
+        processor->set_variables(variables);
+        expand_plugin_args(plugins, *processor, variables);
 
         CounterSet skip_counters;
         uint64_t skip_time = 0;
