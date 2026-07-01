@@ -305,12 +305,12 @@ std::string resolve_arg_ref(const std::string& name, const std::map<std::string,
 }
 
 template<typename ResolveArgument>
-std::string resolve_expansion_ref(const std::string& name, const Processor& processor, ResolveArgument resolve_argument)
+std::string resolve_expansion_ref(const std::string& name, const Processor& processor, ResolveArgument resolve_func)
 {
     if (name.starts_with(ArgumentExpansionRef::parameter_prefix))
         return resolve_parameter_ref(name.substr(ArgumentExpansionRef::parameter_prefix_size), processor);
 
-    return resolve_argument(name);
+    return resolve_func(name);
 }
 
 std::string expand_cli_arg_refs(const std::string& arg,
@@ -349,7 +349,7 @@ std::map<std::string, std::string> expand_variables(const std::map<std::string, 
         return expanded;
     };
 
-    for (const auto& [name, _value] : variables)
+    for (const auto& name : std::views::keys(variables))
         expand_variable(name);
 
     return expanded_variables;
