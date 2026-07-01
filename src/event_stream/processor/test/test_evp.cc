@@ -792,6 +792,33 @@ TEST_F(EVPTest, CanMeasureOccupancyTimeSeries)
     EXPECT_EQ(actual, expected);
 }
 
+TEST_F(EVPTest, CanMeasureOccupancyWithTimeInterval)
+{
+    auto output = run(fmt::format("--es {} +occupancy 30 alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(occupancy.0 30
+occupancy.1 45
+occupancy.2 15
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, CanMeasureOccupancyWithTimeIntervalSuffix)
+{
+    auto output = run(fmt::format("--es {} +occupancy 30ps alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(occupancy.0 30
+occupancy.1 45
+occupancy.2 15
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, OccupancyWithZeroTimeIntervalIsAnError)
+{
+    auto output =
+        run_expecting_error(fmt::format("--es {} +occupancy 0 alloc dealloc +summarize", build_es("occupancy.in")));
+    EXPECT_PLUGIN_ERROR(output, "occupancy", "occupancy interval must be greater than zero\n");
+}
+
 TEST_F(EVPTest, Python)
 {
     auto output = run(fmt::format("--es {} +python {}", build_es("basic.in"), config("pytest.py")));

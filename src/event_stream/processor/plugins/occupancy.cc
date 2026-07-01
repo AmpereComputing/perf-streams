@@ -8,6 +8,7 @@
 #include "event_stream/processor/metric_table.h"
 #include "event_stream/processor/plugin.h"
 #include "event_stream/processor/processor_ifc.h"
+#include "event_stream/processor/utils.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -27,6 +28,7 @@ public:
     static void help(int argc, const char** argv);
     void allocate(Counter * counter, const Event& event);
     void deallocate(Counter * counter, const Event& event);
+    void collect_within_time(uint64_t current_time, uint64_t expiry);
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
     std::set<Phase> phases() const override
     {
@@ -67,8 +69,19 @@ Occupancy::Occupancy(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
 
     args.done();
 
+    if (events.size() == 3) {
+        if (!is_time_spec(events[0]))
+            throw PluginError{"occupancy interval must be a time value"};
+
+        if (parse_time_spec(events[0]) == 0)
+            throw PluginError{"occupancy interval must be greater than zero"};
+
+        at_every(events[0], &Occupancy::collect_within_time);
+        events.erase(events.begin());
+    }
+
     if (events.size() != 2)
-        throw PluginError{"occupancy expects exactly two events: <alloc event> <dealloc event>\n"};
+        throw PluginError{"occupancy expects exactly two events: [<time interval>] <alloc event> <dealloc event>"};
 
     on_every(events[0], &Occupancy::allocate);
     on_every(events[1], &Occupancy::deallocate);
@@ -76,8 +89,12 @@ Occupancy::Occupancy(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
 
 void Occupancy::help(int argc, const char** argv)
 {
-    print_help(argv[0], "occupancy", "[-n|--name <name>] [--factored] <alloc event> <dealloc event>", R"(Arguments:
+    print_help(argv[0],
+               "occupancy",
+               "[-n|--name <name>] [--factored] [<time interval>] <alloc event> <dealloc event>",
+               R"(Arguments:
 
+    <time interval>    Optional time interval with ps/ns/us/ms/s suffix support, like +rate.
     <alloc event>       Event that increments occupancy.
     <dealloc event>     Event that decrements occupancy.
     -n, --name <name>   Metric prefix for occupancy-duration buckets.
@@ -128,6 +145,11 @@ void Occupancy::allocate(Counter* counter, const Event& event)
 void Occupancy::deallocate(Counter* counter, const Event& event)
 {
     update_occupancy(event, -1);
+}
+
+void Occupancy::collect_within_time(uint64_t, uint64_t expiry)
+{
+    accumulate_until(expiry);
 }
 
 std::string Occupancy::bucket_name(uint64_t bucket) const
