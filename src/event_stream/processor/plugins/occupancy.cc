@@ -6,13 +6,11 @@
 #include "event_stream/processor/args.h"
 #include "event_stream/processor/counter.h"
 #include "event_stream/processor/metric_table.h"
-#include "event_stream/processor/plugin.h"
+#include "event_stream/processor/plugins/interval_histogram.h"
 #include "event_stream/processor/processor_ifc.h"
-#include "event_stream/processor/utils.h"
 
 #include <algorithm>
 #include <cstdint>
-#include <fmt/format.h>
 #include <map>
 #include <set>
 #include <string>
@@ -20,7 +18,7 @@
 
 namespace perf_streams::event_stream::processor {
 
-EVP_PLUGIN(Occupancy, "occupancy", "Accumulate occupancy-duration histograms")
+EVP_PLUGIN_FROM(Occupancy, "occupancy", "Accumulate occupancy-duration histograms", IntervalHistogramPlugin)
 {
 public:
     Occupancy(ProcessorIfc & proc_ifc, Args & args);
@@ -30,10 +28,6 @@ public:
     void deallocate(Counter * counter, const Event& event);
     void collect_within_event(Counter * counter, const Event& event);
     void collect_within_time(uint64_t current_time, uint64_t expiry);
-    void end_simulation() override
-    {
-        ended = true;
-    }
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
     std::set<Phase> phases() const override
     {
@@ -41,17 +35,7 @@ public:
     }
 
 private:
-    enum class Interval {
-        None,
-        Time,
-        Event,
-    };
-
     std::string metric_prefix{"occupancy"};
-    bool factored{false};
-    bool ended{false};
-    Interval interval{Interval::None};
-    uint64_t time_interval{0};
 
     uint64_t occupancy{0};
     uint64_t last_time{0};
@@ -66,7 +50,7 @@ private:
     std::string bucket_name(uint64_t bucket) const;
 };
 
-Occupancy::Occupancy(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
+Occupancy::Occupancy(ProcessorIfc& proc_ifc, Args& args) : IntervalHistogramPlugin{proc_ifc}
 {
     std::vector<std::string> events;
 
@@ -75,7 +59,7 @@ Occupancy::Occupancy(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
 
         if (args.pop("-n|--name", metric_prefix)) {
         } else if (args.pop("--factored")) {
-            factored = true;
+            set_factored_metrics(true);
         } else if (args.pop(arg)) {
             events.emplace_back(arg);
         } else {
@@ -86,17 +70,7 @@ Occupancy::Occupancy(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
     args.done();
 
     if (events.size() == 3) {
-        if (is_time_spec(events[0])) {
-            time_interval = parse_time_spec(events[0]);
-            if (time_interval == 0)
-                throw PluginError{"occupancy interval must be greater than zero"};
-
-            interval = Interval::Time;
-            at_every(events[0], &Occupancy::collect_within_time);
-        } else {
-            interval = Interval::Event;
-            on_every(events[0], &Occupancy::collect_within_event);
-        }
+        configure_interval(events[0], "occupancy", &Occupancy::collect_within_event, &Occupancy::collect_within_time);
         events.erase(events.begin());
     }
 
@@ -132,7 +106,7 @@ void Occupancy::initialize_time()
         return;
 
     last_time = get_first_event_time();
-    if (interval == Interval::None)
+    if (!interval_configured())
         histogram.try_emplace(occupancy, 0);
     initialized = true;
 }
@@ -142,7 +116,7 @@ void Occupancy::accumulate_until(uint64_t time)
     initialize_time();
 
     auto duration = time > last_time ? time - last_time : 0;
-    if (interval == Interval::None) {
+    if (!interval_configured()) {
         histogram[occupancy] += duration;
     } else {
         current_interval_value += occupancy * duration;
@@ -169,7 +143,7 @@ void Occupancy::update_occupancy(const Event& event, int delta)
         occupancy -= decrement;
     }
 
-    if (interval == Interval::None)
+    if (!interval_configured())
         histogram.try_emplace(occupancy, 0);
 }
 
@@ -191,28 +165,21 @@ void Occupancy::collect_within_event(Counter* counter, const Event& event)
 
 void Occupancy::collect_within_time(uint64_t current_time, uint64_t expiry)
 {
-    for (auto boundary = expiry; boundary <= current_time;) {
+    for_each_time_boundary(current_time, expiry, [this](uint64_t boundary) {
         accumulate_until(boundary);
         finish_interval();
-
-        if (UINT64_MAX - boundary < time_interval)
-            break;
-        boundary += time_interval;
-    }
+    });
 }
 
 std::string Occupancy::bucket_name(uint64_t bucket) const
 {
-    if (factored)
-        return fmt::format("{}/occupancy:{}", metric_prefix, bucket);
-    return fmt::format("{}.{}", metric_prefix, bucket);
+    return format_histogram_bucket(metric_prefix, "", "occupancy", bucket);
 }
 
 void Occupancy::collect(MetricSeries& metrics, uint64_t trigger_time)
 {
     accumulate_until(trigger_time);
-    if (interval != Interval::None && ended)
-        finish_interval();
+    finish_final_interval([this] { finish_interval(); });
 
     for (const auto& [bucket, duration] : histogram)
         metrics[bucket_name(bucket)] = duration;
