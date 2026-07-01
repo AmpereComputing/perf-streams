@@ -795,9 +795,9 @@ TEST_F(EVPTest, CanMeasureOccupancyTimeSeries)
 TEST_F(EVPTest, CanMeasureOccupancyWithTimeInterval)
 {
     auto output = run(fmt::format("--es {} +occupancy 30 alloc dealloc +summarize", build_es("occupancy.in")));
-    const auto* expected = R"(occupancy.0 30
-occupancy.1 45
-occupancy.2 15
+    const auto* expected = R"(occupancy.10 2
+occupancy.25 1
+occupancy.30 1
 )";
     EXPECT_EQ(output, expected);
 }
@@ -805,9 +805,9 @@ occupancy.2 15
 TEST_F(EVPTest, CanMeasureOccupancyWithTimeIntervalSuffix)
 {
     auto output = run(fmt::format("--es {} +occupancy 30ps alloc dealloc +summarize", build_es("occupancy.in")));
-    const auto* expected = R"(occupancy.0 30
-occupancy.1 45
-occupancy.2 15
+    const auto* expected = R"(occupancy.10 2
+occupancy.25 1
+occupancy.30 1
 )";
     EXPECT_EQ(output, expected);
 }
@@ -816,8 +816,9 @@ TEST_F(EVPTest, CanMeasureOccupancyWithEventInterval)
 {
     auto output =
         run(fmt::format("--es {} +occupancy marker alloc dealloc +summarize", build_es("occupancy_event_interval.in")));
-    const auto* expected = R"(occupancy.0 30
-occupancy.1 50
+    const auto* expected = R"(occupancy.0  1
+occupancy.10 3
+occupancy.20 1
 )";
     EXPECT_EQ(output, expected);
 }

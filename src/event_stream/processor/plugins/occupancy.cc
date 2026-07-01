@@ -30,6 +30,10 @@ public:
     void deallocate(Counter * counter, const Event& event);
     void collect_within_event(Counter * counter, const Event& event);
     void collect_within_time(uint64_t current_time, uint64_t expiry);
+    void end_simulation() override
+    {
+        ended = true;
+    }
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
     std::set<Phase> phases() const override
     {
@@ -37,16 +41,27 @@ public:
     }
 
 private:
+    enum class Interval {
+        None,
+        Time,
+        Event,
+    };
+
     std::string metric_prefix{"occupancy"};
     bool factored{false};
+    bool ended{false};
+    Interval interval{Interval::None};
+    uint64_t time_interval{0};
 
     uint64_t occupancy{0};
     uint64_t last_time{0};
     bool initialized{false};
+    uint64_t current_interval_value{0};
     std::map<uint64_t, uint64_t> histogram;
 
     void initialize_time();
     void accumulate_until(uint64_t time);
+    void finish_interval();
     void update_occupancy(const Event& event, int delta);
     std::string bucket_name(uint64_t bucket) const;
 };
@@ -72,11 +87,14 @@ Occupancy::Occupancy(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
 
     if (events.size() == 3) {
         if (is_time_spec(events[0])) {
-            if (parse_time_spec(events[0]) == 0)
+            time_interval = parse_time_spec(events[0]);
+            if (time_interval == 0)
                 throw PluginError{"occupancy interval must be greater than zero"};
 
+            interval = Interval::Time;
             at_every(events[0], &Occupancy::collect_within_time);
         } else {
+            interval = Interval::Event;
             on_every(events[0], &Occupancy::collect_within_event);
         }
         events.erase(events.begin());
@@ -97,7 +115,9 @@ void Occupancy::help(int argc, const char** argv)
                R"(Arguments:
 
     <interval>         Optional time interval with ps/ns/us/ms/s suffix support, or event to
-                       consider as an interval boundary, like +rate.
+                       consider as an interval boundary, like +rate. When supplied, the
+                       histogram buckets are per-interval occupancy-time samples and values
+                       are sample counts.
     <alloc event>       Event that increments occupancy.
     <dealloc event>     Event that decrements occupancy.
     -n, --name <name>   Metric prefix for occupancy-duration buckets.
@@ -112,7 +132,8 @@ void Occupancy::initialize_time()
         return;
 
     last_time = get_first_event_time();
-    histogram.try_emplace(occupancy, 0);
+    if (interval == Interval::None)
+        histogram.try_emplace(occupancy, 0);
     initialized = true;
 }
 
@@ -121,8 +142,19 @@ void Occupancy::accumulate_until(uint64_t time)
     initialize_time();
 
     auto duration = time > last_time ? time - last_time : 0;
-    histogram[occupancy] += duration;
+    if (interval == Interval::None) {
+        histogram[occupancy] += duration;
+    } else {
+        current_interval_value += occupancy * duration;
+    }
     last_time = std::max(last_time, time);
+}
+
+void Occupancy::finish_interval()
+{
+    initialize_time();
+    ++histogram[current_interval_value];
+    current_interval_value = 0;
 }
 
 void Occupancy::update_occupancy(const Event& event, int delta)
@@ -137,7 +169,8 @@ void Occupancy::update_occupancy(const Event& event, int delta)
         occupancy -= decrement;
     }
 
-    histogram.try_emplace(occupancy, 0);
+    if (interval == Interval::None)
+        histogram.try_emplace(occupancy, 0);
 }
 
 void Occupancy::allocate(Counter* counter, const Event& event)
@@ -153,11 +186,19 @@ void Occupancy::deallocate(Counter* counter, const Event& event)
 void Occupancy::collect_within_event(Counter* counter, const Event& event)
 {
     accumulate_until(event.time());
+    finish_interval();
 }
 
-void Occupancy::collect_within_time(uint64_t, uint64_t expiry)
+void Occupancy::collect_within_time(uint64_t current_time, uint64_t expiry)
 {
-    accumulate_until(expiry);
+    for (auto boundary = expiry; boundary <= current_time;) {
+        accumulate_until(boundary);
+        finish_interval();
+
+        if (UINT64_MAX - boundary < time_interval)
+            break;
+        boundary += time_interval;
+    }
 }
 
 std::string Occupancy::bucket_name(uint64_t bucket) const
@@ -170,6 +211,8 @@ std::string Occupancy::bucket_name(uint64_t bucket) const
 void Occupancy::collect(MetricSeries& metrics, uint64_t trigger_time)
 {
     accumulate_until(trigger_time);
+    if (interval != Interval::None && ended)
+        finish_interval();
 
     for (const auto& [bucket, duration] : histogram)
         metrics[bucket_name(bucket)] = duration;
