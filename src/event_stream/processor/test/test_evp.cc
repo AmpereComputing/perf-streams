@@ -1271,6 +1271,24 @@ TEST_F(EVPTest, CanMeasureRateWithinTime)
     EXPECT_EQ(output, "a.rate.1 1\na.rate.3 2\na.rate.5 1\n");
 }
 
+TEST_F(EVPTest, CanMeasureRateWithinTimeSuffix)
+{
+    auto output = run(fmt::format("--es {} +rate 30ps -e a +summarize", build_es("series.in")));
+    EXPECT_EQ(output, "a.rate.1 1\na.rate.3 2\na.rate.5 1\n");
+}
+
+TEST_F(EVPTest, CanMeasureRateWithinEmptyTimeIntervals)
+{
+    auto output = run(fmt::format("--es {} +rate 30 -e a +summarize", build_es("gapped_series.in")));
+    EXPECT_EQ(output, "a.rate.0 2\na.rate.1 3\n");
+}
+
+TEST_F(EVPTest, RateWithZeroTimeIntervalIsAnError)
+{
+    auto output = run_expecting_error(fmt::format("--es {} +rate 0 -e a +summarize", build_es("series.in")));
+    EXPECT_PLUGIN_ERROR(output, "rate", "rate interval must be greater than zero\n");
+}
+
 TEST_F(EVPTest, CanNameRateWithShortOption)
 {
     auto output = run(fmt::format("--es {} +rate 30 -n named -e a +summarize", build_es("series.in")));
