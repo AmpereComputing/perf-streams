@@ -812,6 +812,16 @@ occupancy.2 15
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, CanMeasureOccupancyWithEventInterval)
+{
+    auto output =
+        run(fmt::format("--es {} +occupancy marker alloc dealloc +summarize", build_es("occupancy_event_interval.in")));
+    const auto* expected = R"(occupancy.0 30
+occupancy.1 50
+)";
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, OccupancyWithZeroTimeIntervalIsAnError)
 {
     auto output =

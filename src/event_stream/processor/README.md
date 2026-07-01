@@ -452,7 +452,7 @@ Which could result in metrics like:
 
 #### Arguments
 
-    +occupancy [-n|--name <name>] [--factored] [<time interval>] <alloc event> <dealloc event>
+    +occupancy [-n|--name <name>] [--factored] [<interval>] <alloc event> <dealloc event>
 
 #### Description
 
@@ -461,9 +461,10 @@ the cumulative amount of time spent at each occupancy level. Allocation events
 increment occupancy; deallocation events decrement it, clamping at zero if an
 extra deallocation is observed.
 
-An optional time interval can be supplied before the event pair. It uses the
-same time format as `+rate` and `-i` (for example `30`, `30ps`, or `1us`) and
-causes the plugin to account for occupancy at those time boundaries.
+An optional interval can be supplied before the event pair. It can use the same
+time format as `+rate` and `-i` (for example `30`, `30ps`, or `1us`) or name an
+event that should act as an interval boundary. The plugin accounts for
+occupancy at those boundaries.
 
 By default, bucket metrics use dotted names:
 

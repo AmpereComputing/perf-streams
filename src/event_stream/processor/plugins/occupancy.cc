@@ -28,6 +28,7 @@ public:
     static void help(int argc, const char** argv);
     void allocate(Counter * counter, const Event& event);
     void deallocate(Counter * counter, const Event& event);
+    void collect_within_event(Counter * counter, const Event& event);
     void collect_within_time(uint64_t current_time, uint64_t expiry);
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
     std::set<Phase> phases() const override
@@ -70,13 +71,14 @@ Occupancy::Occupancy(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
     args.done();
 
     if (events.size() == 3) {
-        if (!is_time_spec(events[0]))
-            throw PluginError{"occupancy interval must be a time value"};
+        if (is_time_spec(events[0])) {
+            if (parse_time_spec(events[0]) == 0)
+                throw PluginError{"occupancy interval must be greater than zero"};
 
-        if (parse_time_spec(events[0]) == 0)
-            throw PluginError{"occupancy interval must be greater than zero"};
-
-        at_every(events[0], &Occupancy::collect_within_time);
+            at_every(events[0], &Occupancy::collect_within_time);
+        } else {
+            on_every(events[0], &Occupancy::collect_within_event);
+        }
         events.erase(events.begin());
     }
 
@@ -91,10 +93,11 @@ void Occupancy::help(int argc, const char** argv)
 {
     print_help(argv[0],
                "occupancy",
-               "[-n|--name <name>] [--factored] [<time interval>] <alloc event> <dealloc event>",
+               "[-n|--name <name>] [--factored] [<interval>] <alloc event> <dealloc event>",
                R"(Arguments:
 
-    <time interval>    Optional time interval with ps/ns/us/ms/s suffix support, like +rate.
+    <interval>         Optional time interval with ps/ns/us/ms/s suffix support, or event to
+                       consider as an interval boundary, like +rate.
     <alloc event>       Event that increments occupancy.
     <dealloc event>     Event that decrements occupancy.
     -n, --name <name>   Metric prefix for occupancy-duration buckets.
@@ -145,6 +148,11 @@ void Occupancy::allocate(Counter* counter, const Event& event)
 void Occupancy::deallocate(Counter* counter, const Event& event)
 {
     update_occupancy(event, -1);
+}
+
+void Occupancy::collect_within_event(Counter* counter, const Event& event)
+{
+    accumulate_until(event.time());
 }
 
 void Occupancy::collect_within_time(uint64_t, uint64_t expiry)
