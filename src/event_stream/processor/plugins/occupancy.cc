@@ -112,7 +112,7 @@ void Occupancy::initialize_time()
         return;
 
     last_time = get_first_event_time();
-    histogram[occupancy] += 0;
+    histogram.try_emplace(occupancy, 0);
     initialized = true;
 }
 
@@ -137,7 +137,7 @@ void Occupancy::update_occupancy(const Event& event, int delta)
         occupancy -= decrement;
     }
 
-    histogram[occupancy] += 0;
+    histogram.try_emplace(occupancy, 0);
 }
 
 void Occupancy::allocate(Counter* counter, const Event& event)
