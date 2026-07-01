@@ -452,8 +452,11 @@ Which could result in metrics like:
 
 #### Description
 
-The `rate` counts occurrences of events (added with `--event`) within the interval
-(time or event, like `-i`). These emitted events are named either:
+The `rate` counts occurrences of events (added with `--event`) within the interval.
+The interval can be a time value (a number followed by one of the suffixes:
+"ps", "ns", "us", "ms", "s") or an event. When a time interval is used, events
+are grouped by `time / interval`; empty time intervals contribute one sample to
+the `0` bucket. These emitted events are named either:
 
 * Non-factored: `<event_name>.<name>.<rate>`
 * Factored: `<event_name>/<name>:<rate>`

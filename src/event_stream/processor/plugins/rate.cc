@@ -39,10 +39,12 @@ public:
 
 private:
     void collect_within();
+    void collect_empty_time_intervals(uint64_t count);
     std::string format_event_name(const std::string& event_name, const std::string& name, int64_t rate) const;
 
     bool ended = false;
     bool factored = false;
+    uint64_t time_interval = 0;
     struct Setting
     {
         int64_t previous_value = 0;
@@ -83,10 +85,14 @@ Rate::Rate(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
 
     args.done();
 
-    if (is_time_spec(interval))
+    if (is_time_spec(interval)) {
+        time_interval = parse_time_spec(interval);
+        if (time_interval == 0)
+            throw PluginError{"rate interval must be greater than zero"};
         at_every(interval, &Rate::collect_within_time);
-    else
+    } else {
         on_every(interval, &Rate::collect_within_event);
+    }
 }
 
 void Rate::collect_within()
@@ -103,6 +109,20 @@ void Rate::collect_within()
     }
 }
 
+void Rate::collect_empty_time_intervals(uint64_t count)
+{
+    if (count == 0)
+        return;
+
+    for (auto& [counter_id, setting] : settings) {
+        int64_t within_period = 0;
+        if (setting.bounds)
+            within_period = setting.bounds->adjust(within_period);
+
+        histogram[counter_id][within_period] += count;
+    }
+}
+
 void Rate::collect_within_event(Counter* counter, const Event& event)
 {
     collect_within();
@@ -111,6 +131,7 @@ void Rate::collect_within_event(Counter* counter, const Event& event)
 void Rate::collect_within_time(uint64_t current_time, uint64_t expiry)
 {
     collect_within();
+    collect_empty_time_intervals((current_time / time_interval) - (expiry / time_interval));
 }
 
 std::string Rate::format_event_name(const std::string& event_name, const std::string& name, int64_t rate) const
@@ -138,7 +159,9 @@ void Rate::help(int argc, const char** argv)
 {
     print_help(argv[0], "rate", "<interval> [--factored] [-n|--name <name>] [-e|--event <event>]", R"(Arguments:
 
-    <interval>          Event to consider beginning of rate measurement
+    <interval>          Time interval (with optional ps/ns/us/ms/s suffix, like -i) or event to consider
+                        beginning of rate measurement. Time intervals are grouped by time / interval,
+                        and empty time intervals contribute to the 0 bucket.
     --factored          Emit events as factored instead of suffix
     -n, --name          Event suffix or data-value name for output event
     -e, --event         Metric name for results, with optional bucket/bounds settings similar to +count, like:
