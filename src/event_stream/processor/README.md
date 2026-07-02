@@ -243,23 +243,6 @@ stdout (indicated by `-`) which the next `evp` processes and prints.
 In this manner, you can can filter/adjust streams and to later reporting on the
 adjusted stream.
 
-### C++ Plugin Transaction Queries
-
-C++ plugins can request processor-owned transaction tracking by returning
-`Plugin::Phase::TRANSACTIONS` from `phases()`. When this phase is present, the
-processor records standard `start_transaction` parent links from `txid` and
-`parent` data values before plugin event callbacks run. The phase also enables
-`start_transaction` and `end_transaction` in live response streams for internal
-tracking without making those events countable or visible to unrelated plugin
-callbacks.
-
-Plugins can query the current transaction tree with these helpers:
-
-* `event_txid(event) -> std::optional<uint64_t>`
-* `transaction_parent(txid) -> std::optional<uint64_t>`
-* `is_ancestor(ancestor_txid, descendant_txid) -> bool`
-* `is_related(txid_a, txid_b) -> bool`
-
 ## Plugin Synopses
 
 ### `count`
