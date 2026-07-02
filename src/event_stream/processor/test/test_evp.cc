@@ -1043,6 +1043,19 @@ end_transaction txid=1 parent=None
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, PythonTransactionQueriesBoundCyclicParents)
+{
+    auto output =
+        run(fmt::format("--es {} +python {}", build_es("transaction_cycle.in"), config("transactions_cycle.py")));
+
+    const auto* expected = R"(probe_self parent_1=1 self_ancestor=True unrelated_99=False
+probe_parent_child parent_1=2 parent_2=1 root_2=True cycle_1_2=True related_1_2=True
+probe_cycle parent_3=4 parent_4=3 ancestor_4_3=True ancestor_3_4=True unrelated_99_4=False
+)";
+
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, PythonTransactionQueriesRequireOptIn)
 {
     auto output = run_expecting_error(
