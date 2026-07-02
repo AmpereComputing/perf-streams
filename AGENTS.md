@@ -11,11 +11,13 @@ Run tests with `make test`
 ## Linting
 
 Linting can be checked with `make check` and automatically fixed with `make
-lint`. Some checks are behind `make check-all`, which similarily can be fixed
-with `make lint-all`.
+lint`. Some checks are behind `make check-all`, which similarly can be fixed
+with `make lint-all`. Note, lint requires a clean tree, but you can use `.lint`
+and `.lint-all` to run within a dirty tree.
 
 ## Coding format
 
+* Prefer `c++23` for C++ and python3 with type annotations for python
 * Follow C++ formatting set in `.clang-format` (uses `clang-format`)
 * Follow Python formatting set in `pyproject.toml` (uses `ruff format`)
 
@@ -28,7 +30,7 @@ a git commit message *and* in the code. Labeling via git messages is
 For git messages, use the following commit template:
 
     <SUMMARY OF CHANGE, max of 50 characters>
-    <DETAILS OF CHANGE, wrap at 72 characters>
+    <DETAILS OF CHANGE, wrap at 72 characters, bulletted list>
 
     Assisted-by: <AGENT NAME>:<MODEL VERSION>
 
@@ -41,6 +43,8 @@ Comments can be grouped semantically by block/function/class/file, etc.
 Per-line labeling is *not* required. Only add a comment if a large amount of
 code is generated from scratch.
 
-`MODEL_VERSION` is the most specific model identifier exposed by the runtime
-(including reasoning level). If only a partial identifier is available, use
-that partial identifier as-is. Do not guess missing version details.
+ `AGENT NAME` may be the name of harness used. `MODEL VERSION` is the most
+ specific model identifier exposed by the runtime (including reasoning level
+ and harness). If only a partial identifier is available, use that partial
+ identifier as-is. Do not guess missing version details. An example of the full
+ name may be: "Codex:gpt-5.5 high".
