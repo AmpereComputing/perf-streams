@@ -482,18 +482,7 @@ void Processor::save_definition(const Definition& definition)
 {
     definitions[definition.id()] = definition;
     definition_index[definition.name()] = definition.id();
-
-    if (definition.kind() == event_stream_proto::EVENT) {
-        if (definition.name() == "start_transaction")
-            start_transaction_definition_id = definition.id();
-        else if (definition.name() == "end_transaction")
-            end_transaction_definition_id = definition.id();
-    } else if (definition.kind() == event_stream_proto::VALUE) {
-        if (definition.name() == "txid")
-            txid_definition_id = definition.id();
-        else if (definition.name() == "parent")
-            parent_definition_id = definition.id();
-    }
+    transaction_tracker.save_definition(definition);
 }
 
 /** Save a Parameter away in our table.
@@ -564,6 +553,46 @@ void Processor::handle_event(const Event& event)
 
 std::optional<uint64_t> Processor::event_txid(const Event& event) const
 {
+    return transaction_tracker.event_txid(event);
+}
+
+std::optional<uint64_t> Processor::transaction_parent(uint64_t txid) const
+{
+    return transaction_tracker.transaction_parent(txid);
+}
+
+bool Processor::is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const
+{
+    return transaction_tracker.is_ancestor(ancestor_txid, descendant_txid);
+}
+
+bool Processor::is_related(uint64_t txid_a, uint64_t txid_b) const
+{
+    return transaction_tracker.is_related(txid_a, txid_b);
+}
+
+void Processor::update_transaction_tracking(const Event& event)
+{
+    transaction_tracker.update(event);
+}
+
+void Processor::TransactionTracker::save_definition(const Definition& definition)
+{
+    if (definition.kind() == event_stream_proto::EVENT) {
+        if (definition.name() == "start_transaction")
+            start_transaction_definition_id = definition.id();
+        else if (definition.name() == "end_transaction")
+            end_transaction_definition_id = definition.id();
+    } else if (definition.kind() == event_stream_proto::VALUE) {
+        if (definition.name() == "txid")
+            txid_definition_id = definition.id();
+        else if (definition.name() == "parent")
+            parent_definition_id = definition.id();
+    }
+}
+
+std::optional<uint64_t> Processor::TransactionTracker::event_txid(const Event& event) const
+{
     if (!txid_definition_id)
         return {};
 
@@ -586,7 +615,7 @@ std::optional<uint64_t> Processor::event_txid(const Event& event) const
     return {};
 }
 
-std::optional<uint64_t> Processor::transaction_parent(uint64_t txid) const
+std::optional<uint64_t> Processor::TransactionTracker::transaction_parent(uint64_t txid) const
 {
     if (auto parent = transaction_parents.find(txid); parent != transaction_parents.end())
         return parent->second;
@@ -594,7 +623,7 @@ std::optional<uint64_t> Processor::transaction_parent(uint64_t txid) const
     return {};
 }
 
-bool Processor::is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const
+bool Processor::TransactionTracker::is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const
 {
     for (auto parent = transaction_parent(descendant_txid); parent; parent = transaction_parent(*parent)) {
         if (*parent == ancestor_txid)
@@ -604,12 +633,12 @@ bool Processor::is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) co
     return false;
 }
 
-bool Processor::is_related(uint64_t txid_a, uint64_t txid_b) const
+bool Processor::TransactionTracker::is_related(uint64_t txid_a, uint64_t txid_b) const
 {
     return txid_a == txid_b || is_ancestor(txid_a, txid_b) || is_ancestor(txid_b, txid_a);
 }
 
-void Processor::update_transaction_tracking(const Event& event)
+void Processor::TransactionTracker::update(const Event& event)
 {
     if (!start_transaction_definition_id || event.definition_id() != *start_transaction_definition_id)
         return;
@@ -634,6 +663,12 @@ void Processor::update_transaction_tracking(const Event& event)
             return;
         }
     }
+}
+
+bool Processor::TransactionTracker::should_enable_event(uint32_t event_id) const
+{
+    return (start_transaction_definition_id && event_id == *start_transaction_definition_id)
+           || (end_transaction_definition_id && event_id == *end_transaction_definition_id);
 }
 
 /** Collect metrics.
@@ -707,9 +742,7 @@ void Processor::enable_active_events()
 
 bool Processor::should_enable_event_for_transactions(uint32_t event_id) const
 {
-    return phases.contains(Plugin::Phase::TRANSACTIONS)
-           && ((start_transaction_definition_id && event_id == *start_transaction_definition_id)
-               || (end_transaction_definition_id && event_id == *end_transaction_definition_id));
+    return phases.contains(Plugin::Phase::TRANSACTIONS) && transaction_tracker.should_enable_event(event_id);
 }
 
 /** Called by a plugin to count a particular (possibly factored)
