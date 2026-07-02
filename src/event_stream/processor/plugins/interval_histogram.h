@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <fmt/format.h>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -66,10 +67,18 @@ protected:
         return (current_time / time_interval_value) - (expiry / time_interval_value);
     }
 
-    template<typename Action>
-    void finish_final_interval(Action action)
+    uint64_t latest_time_boundary(uint64_t current_time, uint64_t expiry) const
     {
-        if (ended && interval_type != Interval::None)
+        return expiry + empty_time_boundaries_after(current_time, expiry) * time_interval_value;
+    }
+
+    void mark_interval_update(uint64_t time) { last_interval_update_time = time; }
+
+    template<typename Action>
+    void finish_final_interval(uint64_t trigger_time, Action action)
+    {
+        if (ended && interval_type != Interval::None
+            && (!last_interval_update_time || trigger_time > *last_interval_update_time))
             action();
     }
 
@@ -95,6 +104,7 @@ private:
     bool factored_metrics{false};
     Interval interval_type{Interval::None};
     uint64_t time_interval_value{0};
+    std::optional<uint64_t> last_interval_update_time;
 };
 
 } // namespace perf_streams::event_stream::processor

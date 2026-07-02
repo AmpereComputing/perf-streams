@@ -44,7 +44,7 @@ private:
 
     void initialize_time();
     void accumulate_until(uint64_t time);
-    void finish_interval();
+    void finish_interval(uint64_t time);
     void update_occupancy(const Event& event, int delta);
     std::string bucket_name(uint64_t bucket) const;
 };
@@ -120,10 +120,11 @@ void Occupancy::accumulate_until(uint64_t time)
     last_time = std::max(last_time, time);
 }
 
-void Occupancy::finish_interval()
+void Occupancy::finish_interval(uint64_t time)
 {
     initialize_time();
     ++histogram[occupancy];
+    mark_interval_update(time);
 }
 
 void Occupancy::update_occupancy(const Event& event, int delta)
@@ -155,14 +156,14 @@ void Occupancy::deallocate(Counter* counter, const Event& event)
 void Occupancy::collect_within_event(Counter* counter, const Event& event)
 {
     accumulate_until(event.time());
-    finish_interval();
+    finish_interval(event.time());
 }
 
 void Occupancy::collect_within_time(uint64_t current_time, uint64_t expiry)
 {
     for_each_time_boundary(current_time, expiry, [this](uint64_t boundary) {
         accumulate_until(boundary);
-        finish_interval();
+        finish_interval(boundary);
     });
 }
 
@@ -174,7 +175,7 @@ std::string Occupancy::bucket_name(uint64_t bucket) const
 void Occupancy::collect(MetricSeries& metrics, uint64_t trigger_time)
 {
     accumulate_until(trigger_time);
-    finish_final_interval([this] { finish_interval(); });
+    finish_final_interval(trigger_time, [this, trigger_time] { finish_interval(trigger_time); });
 
     for (const auto& [bucket, duration] : histogram)
         metrics[bucket_name(bucket)] = duration;

@@ -110,17 +110,19 @@ void Rate::collect_empty_time_intervals(uint64_t count)
 void Rate::collect_within_event(Counter* counter, const Event& event)
 {
     collect_within();
+    mark_interval_update(event.time());
 }
 
 void Rate::collect_within_time(uint64_t current_time, uint64_t expiry)
 {
     collect_within();
     collect_empty_time_intervals(empty_time_boundaries_after(current_time, expiry));
+    mark_interval_update(latest_time_boundary(current_time, expiry));
 }
 
 void Rate::collect(MetricSeries& metrics, uint64_t trigger_time)
 {
-    finish_final_interval([this] { collect_within(); });
+    finish_final_interval(trigger_time, [this] { collect_within(); });
 
     for (auto& [name, name_counters] : counters) {
         for (auto counter_id : name_counters) {
