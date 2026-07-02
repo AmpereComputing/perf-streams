@@ -171,15 +171,24 @@ python-lint: .require-clean
 python-lint-check:
 	$(FIND_SRCS) $(PY_FILES) | xargs -r $(RUFF) check
 
-.PHONY: lint
-lint: .require-clean
+.PHONY: .lint
+.lint:
 	$(MAKE) .clang-format
 	$(MAKE) .python-lint
 	$(MAKE) .python-format
 
-.PHONY: lint-all
-lint-all: lint
+.PHONY: lint
+lint: .require-clean
+	$(MAKE) .lint
+
+.PHONY: .lint-all
+.lint-all:
+	$(MAKE) .lint
 	$(MAKE) clang-tidy
+
+.PHONY: lint-all
+lint-all: .require-clean
+	$(MAKE) .lint-all
 
 .PHONY: check
 check:
