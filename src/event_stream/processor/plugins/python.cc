@@ -29,11 +29,16 @@ namespace perf_streams::event_stream::processor {
  *
  *  There are several APIs exposed to a user's Python file today:
  *
- *    1. on             : react to an event (pattern) by calling a function
- *    2. end_simulation : react to the end of simulation by calling a function
- *    3. collect        : schedule a function to call on collect time points
- *    4. has_definition : report whether an event is defined (by name)
- *    5. require_transactions and query helpers : opt-in transaction ancestry lookup
+ *    1.  on                  : react to an event (pattern) by calling a function
+ *    2.  collect             : schedule a function to call on collect time points
+ *    3.  end_simulation      : react to the end of simulation by calling a function
+ *    4.  has_definition      : report whether a definition exists (by name)
+ *    5.  get_parameter       : get a parameter value (by name)
+ *    6.  require_transactions: opt in to transaction tracking
+ *    7.  event_txid          : get the transaction id from an event
+ *    8.  transaction_parent  : get the immediate parent transaction id
+ *    9.  is_ancestor         : query transaction ancestry
+ *    10. is_related          : query same or ancestor/descendant transactions
  */
 EVP_PLUGIN(Python, "python", "Custom python-based event processor plugin")
 {
