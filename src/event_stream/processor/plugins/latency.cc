@@ -103,19 +103,11 @@ private:
     bool tracking_transactions{true};
     bool include_related{false};
     std::unordered_set<int> key_definitions;
-    struct RelatedStartEvent
-    {
-        uint64_t txid;
-        uint64_t time;
-    };
-    std::vector<RelatedStartEvent> related_start_events;
-
     static std::string build_name(const std::vector<std::string>& events);
     void update_latency(Counter * counter, const event_stream_proto::Event& event, int idx);
     void update_related_latency(const event_stream_proto::Event& event, int idx);
     void end_transaction(Counter * counter, const event_stream_proto::Event& event);
-    void record_latency(LatencyTracker & tracker, uint64_t now, int idx);
-    void record_latency_sample(uint64_t latency, int idx);
+    void record_latency(LatencyTracker & tracker, uint64_t now, int idx, bool require_sequence = false);
     void finalize_latency(const TrackerIter& tracker);
     void aggregate_latency(LatencyTracker & tracker);
     std::optional<uint64_t> get_key(const event_stream_proto::Event& event) const;
@@ -172,9 +164,6 @@ Latency::Latency(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
     aggregated_info.resize(events.size());
     aggregated_hist_info.resize(events.size());
 
-    if (include_related && events.size() != 2)
-        throw PluginError{"--include-related is only supported for event pairs"};
-
     int idx = 0;
 
     for (auto& event : events) {
@@ -210,7 +199,7 @@ Latency::Latency(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
         if (name.empty())
             name = build_name(events);
 
-        if (tracking_transactions && !include_related)
+        if (tracking_transactions)
             on_every("end_transaction", &Latency::end_transaction);
     }
 }
@@ -289,69 +278,71 @@ void Latency::update_related_latency(const event_stream_proto::Event& event, int
         return;
 
     if (idx == 0) {
-        related_start_events.push_back({*txid, event.time()});
+        auto tracker_iter = trackers.find(*txid);
+        if (tracker_iter == trackers.end())
+            std::tie(tracker_iter, std::ignore) = trackers.insert({*txid, LatencyTracker(event.time(), events.size())});
+
+        record_latency(tracker_iter->second, event.time(), idx, true);
         return;
     }
 
-    for (const auto& start : related_start_events) {
-        if (is_related(start.txid, *txid))
-            record_latency_sample(event.time() - start.time, 0);
+    for (auto& [tracker_txid, tracker] : trackers) {
+        if (is_related(tracker_txid, *txid))
+            record_latency(tracker, event.time(), idx, true);
     }
 }
 
-void Latency::record_latency(LatencyTracker& tracker, uint64_t now, int idx)
+void Latency::record_latency(LatencyTracker& tracker, uint64_t now, int idx, bool require_sequence)
 {
-    if (tracker.last_event_idx >= 0) {
-        auto latency = now - tracker.last_event_time;
-        auto& time_count = tracker.time_per_event[tracker.last_event_idx];
-        time_count.time += latency;
-        time_count.count += 1;
+    if (!require_sequence) {
+        if (tracker.last_event_idx >= 0) {
+            auto latency = now - tracker.last_event_time;
+            auto& time_count = tracker.time_per_event[tracker.last_event_idx];
+            time_count.time += latency;
+            time_count.count += 1;
+        }
+
+        tracker.last_event_time = now;
+        tracker.last_event_idx = idx;
+
+        if (idx == 0)
+            tracker.saw_start_event = true;
+
+        return;
     }
+
+    if (idx == 0) {
+        tracker.last_event_time = now;
+        tracker.last_event_idx = idx;
+        tracker.saw_start_event = true;
+        return;
+    }
+
+    if (!tracker.saw_start_event)
+        return;
+
+    if (idx <= tracker.last_event_idx) {
+        tracker.last_event_time = now;
+        tracker.last_event_idx = idx;
+        return;
+    }
+
+    if (idx != tracker.last_event_idx + 1)
+        return;
+
+    auto latency = now - tracker.last_event_time;
+    auto& time_count = tracker.time_per_event[tracker.last_event_idx];
+    time_count.time += latency;
+    time_count.count += 1;
 
     tracker.last_event_time = now;
     tracker.last_event_idx = idx;
-
-    if (idx == 0)
-        tracker.saw_start_event = true;
 }
 
 void Latency::finalize_latency(const TrackerIter& tracker_iter)
 {
     aggregate_latency(tracker_iter->second);
     trackers.erase(tracker_iter);
-}
-
-void Latency::record_latency_sample(uint64_t latency, int idx)
-{
-    auto& info = aggregated_info[idx];
-    info.time += latency;
-    info.count += 1;
-
-    if (!latency)
-        return;
-
-    auto& hist_info = aggregated_hist_info[idx];
-    if (histogram) {
-        auto bucket = histogram_bounds ? histogram_bounds->adjust(latency) : latency;
-        ++hist_info.latency_counts[bucket];
-    }
-
-    if ((hist_info.max_N_latencies.size() >= max_latencies_vector_size) && (latency > hist_info.max_N_latencies.back()))
-    {
-        hist_info.max_N_latencies.pop_back();
-        hist_info.max_N_latencies.push_back(latency);
-        std::ranges::sort(hist_info.max_N_latencies, std::greater<>());
-    } else if (hist_info.max_N_latencies.size() < max_latencies_vector_size) {
-        hist_info.max_N_latencies.push_back(latency);
-        std::ranges::sort(hist_info.max_N_latencies, std::greater<>());
-    }
-
-    if (latency < hist_info.min_latency)
-        hist_info.min_latency = latency;
-    if (info.count == 1)
-        return;
-
-    hist_info.stdev = std::sqrt((info.time * info.time + (info.time * info.time) / info.count) / (info.count - 1));
 }
 
 void Latency::end_transaction(Counter* counter, const event_stream_proto::Event& event)

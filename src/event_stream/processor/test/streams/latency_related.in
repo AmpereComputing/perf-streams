@@ -16,3 +16,23 @@
 150 end_transaction txid=2u
 160 end_transaction txid=4u
 170 end_transaction txid=1u
+180 start_transaction txid=10u
+190 related_chain_a txid=10u
+200 start_transaction txid=11u parent=10u
+210 related_chain_b txid=11u
+220 start_transaction txid=12u parent=11u
+240 related_chain_c txid=12u
+250 end_transaction txid=12u
+260 end_transaction txid=11u
+270 end_transaction txid=10u
+280 start_transaction txid=20u
+290 stale_a txid=20u
+300 end_transaction txid=20u
+310 stale_b txid=20u
+320 start_transaction txid=30u
+330 related_repeat_a txid=30u
+340 related_repeat_a txid=30u
+350 start_transaction txid=31u parent=30u
+370 related_repeat_b txid=31u
+380 end_transaction txid=31u
+390 end_transaction txid=30u

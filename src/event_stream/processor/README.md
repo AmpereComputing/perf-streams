@@ -389,7 +389,8 @@ With `--include-related`, `latency` also matches events whose transactions are
 ancestor/descendant related by standard `start_transaction` parent links. This
 includes parent-to-child, child-to-parent, and grandparent/grandchild matches,
 but not sibling transactions. `--include-related` cannot be combined with
-`-k|--key`, and is supported for event pairs.
+`-k|--key`. Related matching follows the same event sequence rules as the
+default latency mode.
 
 There some additional rules to how latencies are collected:
 

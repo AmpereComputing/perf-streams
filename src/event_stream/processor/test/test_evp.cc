@@ -850,6 +850,61 @@ same.sum_latency     10
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedChain)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n rc related_chain_a related_chain_b "
+                        "related_chain_c +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(rc.count                           1
+rc.max_avg_latency                 20
+rc.max_latency                     20
+rc.min_latency                     20
+rc.related_chain_a.count           1
+rc.related_chain_a.max_avg_latency 20
+rc.related_chain_a.max_latency     20
+rc.related_chain_a.min_latency     20
+rc.related_chain_a.stdev           0
+rc.related_chain_a.sum_latency     20
+rc.related_chain_b.count           1
+rc.related_chain_b.max_avg_latency 30
+rc.related_chain_b.max_latency     30
+rc.related_chain_b.min_latency     30
+rc.related_chain_b.stdev           0
+rc.related_chain_b.sum_latency     30
+rc.stdev                           0
+rc.sum_latency                     20
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedRetiresEndedTransactions)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n stale stale_a stale_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(stale.count       0
+stale.stdev       0
+stale.sum_latency 0
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedRepeatedStartReplacesPreviousStart)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n rel_repeat related_repeat_a related_repeat_b "
+                        "+summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(rel_repeat.count           1
+rel_repeat.max_avg_latency 30
+rel_repeat.max_latency     30
+rel_repeat.min_latency     30
+rel_repeat.stdev           0
+rel_repeat.sum_latency     30
+)";
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, LatencyIncludeRelatedRejectsKeys)
 {
     auto output = run_expecting_error(fmt::format(
