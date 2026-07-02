@@ -50,7 +50,7 @@ protected:
     }
 
     template<typename Action>
-    void for_each_time_boundary(uint64_t current_time, uint64_t expiry, Action&& action) const
+    void for_each_time_boundary(uint64_t current_time, uint64_t expiry, Action action) const
     {
         for (auto boundary = expiry; boundary <= current_time;) {
             action(boundary);
@@ -67,7 +67,7 @@ protected:
     }
 
     template<typename Action>
-    void finish_final_interval(Action&& action)
+    void finish_final_interval(Action action)
     {
         if (ended && interval_type != Interval::None)
             action();
