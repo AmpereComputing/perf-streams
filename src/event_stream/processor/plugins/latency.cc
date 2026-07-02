@@ -107,6 +107,7 @@ private:
     void update_latency(Counter * counter, const event_stream_proto::Event& event, int idx);
     void update_related_latency(const event_stream_proto::Event& event, int idx);
     void end_transaction(Counter * counter, const event_stream_proto::Event& event);
+    void record_latency_for_key(uint64_t key, const event_stream_proto::Event& event, int idx, bool require_sequence);
     void record_latency(LatencyTracker & tracker, uint64_t now, int idx, bool require_sequence = false);
     void finalize_latency(const TrackerIter& tracker);
     void aggregate_latency(LatencyTracker & tracker);
@@ -259,16 +260,8 @@ void Latency::update_latency(Counter* counter, const event_stream_proto::Event& 
         return;
     }
 
-    if (auto key = get_key(event); key) {
-        auto tracker_iter = trackers.find(*key);
-        if (tracker_iter == trackers.end())
-            std::tie(tracker_iter, std::ignore) = trackers.insert({*key, LatencyTracker(event.time(), events.size())});
-
-        record_latency(tracker_iter->second, event.time(), idx);
-
-        if (!tracking_transactions && static_cast<size_t>(idx + 1) == events.size())
-            finalize_latency(tracker_iter);
-    }
+    if (auto key = get_key(event); key)
+        record_latency_for_key(*key, event, idx, false);
 }
 
 void Latency::update_related_latency(const event_stream_proto::Event& event, int idx)
@@ -278,11 +271,7 @@ void Latency::update_related_latency(const event_stream_proto::Event& event, int
         return;
 
     if (idx == 0) {
-        auto tracker_iter = trackers.find(*txid);
-        if (tracker_iter == trackers.end())
-            std::tie(tracker_iter, std::ignore) = trackers.insert({*txid, LatencyTracker(event.time(), events.size())});
-
-        record_latency(tracker_iter->second, event.time(), idx, true);
+        record_latency_for_key(*txid, event, idx, true);
         return;
     }
 
@@ -290,6 +279,21 @@ void Latency::update_related_latency(const event_stream_proto::Event& event, int
         if (is_related(tracker_txid, *txid))
             record_latency(tracker, event.time(), idx, true);
     }
+}
+
+void Latency::record_latency_for_key(uint64_t key,
+                                     const event_stream_proto::Event& event,
+                                     int idx,
+                                     bool require_sequence)
+{
+    auto tracker_iter = trackers.find(key);
+    if (tracker_iter == trackers.end())
+        std::tie(tracker_iter, std::ignore) = trackers.insert({key, LatencyTracker(event.time(), events.size())});
+
+    record_latency(tracker_iter->second, event.time(), idx, require_sequence);
+
+    if (!tracking_transactions && static_cast<size_t>(idx + 1) == events.size())
+        finalize_latency(tracker_iter);
 }
 
 void Latency::record_latency(LatencyTracker& tracker, uint64_t now, int idx, bool require_sequence)
