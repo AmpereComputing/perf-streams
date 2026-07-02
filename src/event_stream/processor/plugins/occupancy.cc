@@ -40,7 +40,6 @@ private:
     uint64_t occupancy{0};
     uint64_t last_time{0};
     bool initialized{false};
-    uint64_t current_interval_value{0};
     std::map<uint64_t, uint64_t> histogram;
 
     void initialize_time();
@@ -90,8 +89,8 @@ void Occupancy::help(int argc, const char** argv)
 
     <interval>         Optional time interval with ps/ns/us/ms/s suffix support, or event to
                        consider as an interval boundary, like +rate. When supplied, the
-                       histogram buckets are per-interval occupancy-time samples and values
-                       are sample counts.
+                       histogram buckets are occupancy samples at interval boundaries and
+                       values are sample counts.
     <alloc event>       Event that increments occupancy.
     <dealloc event>     Event that decrements occupancy.
     -n, --name <name>   Metric prefix for occupancy-duration buckets.
@@ -116,19 +115,15 @@ void Occupancy::accumulate_until(uint64_t time)
     initialize_time();
 
     auto duration = time > last_time ? time - last_time : 0;
-    if (!interval_configured()) {
+    if (!interval_configured())
         histogram[occupancy] += duration;
-    } else {
-        current_interval_value += occupancy * duration;
-    }
     last_time = std::max(last_time, time);
 }
 
 void Occupancy::finish_interval()
 {
     initialize_time();
-    ++histogram[current_interval_value];
-    current_interval_value = 0;
+    ++histogram[occupancy];
 }
 
 void Occupancy::update_occupancy(const Event& event, int delta)

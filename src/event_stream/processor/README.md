@@ -466,7 +466,7 @@ time format as `+rate` and `-i` (for example `30`, `30ps`, or `1us`) or name an
 event that should act as an interval boundary. When an interval is supplied,
 the plugin reports a rate-style histogram: each boundary, plus the final partial
 interval at the end of simulation, contributes one sample whose bucket is the
-occupancy-time accumulated within that interval.
+current occupancy at that boundary.
 
 By default, bucket metrics use dotted names:
 
@@ -484,9 +484,9 @@ are emitted using factored metric names:
 With an interval, the metric value is the number of interval samples in that
 bucket:
 
-    occupancy.10 2
-    occupancy.25 1
-    occupancy.30 1
+    occupancy.0 2
+    occupancy.1 1
+    occupancy.2 1
 
 ### `rate`
 
