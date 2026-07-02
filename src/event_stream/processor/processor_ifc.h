@@ -13,6 +13,7 @@
 #include <fmt/format.h>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -57,6 +58,10 @@ struct ProcessorIfc
 
     virtual uint64_t get_current_time() const = 0;
     virtual uint64_t get_first_event_time() const = 0;
+    virtual std::optional<uint64_t> event_txid(const Event& event) const = 0;
+    virtual std::optional<uint64_t> transaction_parent(uint64_t txid) const = 0;
+    virtual bool is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const = 0;
+    virtual bool is_related(uint64_t txid_a, uint64_t txid_b) const = 0;
 
     virtual Counter& get_counter(int counter_id) = 0;
 

@@ -27,12 +27,13 @@ namespace perf_streams::event_stream::processor {
  *  Most of the actual work by this plugin is handled by a single global/shared
  *  instance of PythonPluginHelper, below.
  *
- *  There are four APIs exposed to a user's Python file today:
+ *  There are several APIs exposed to a user's Python file today:
  *
  *    1. on             : react to an event (pattern) by calling a function
  *    2. end_simulation : react to the end of simulation by calling a function
  *    3. collect        : schedule a function to call on collect time points
  *    4. has_definition : report whether an event is defined (by name)
+ *    5. require_transactions and query helpers : opt-in transaction ancestry lookup
  */
 EVP_PLUGIN(Python, "python", "Custom python-based event processor plugin")
 {
@@ -46,10 +47,7 @@ public:
 
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
     void end_simulation() override;
-    std::set<Phase> phases() const override
-    {
-        return {Phase::DEFINITIONS, Phase::COUNTERS};
-    }
+    std::set<Phase> phases() const override;
 
 private:
     unsigned python_plugin_idx;
@@ -71,6 +69,8 @@ public:
     const Parameter* py_get_parameter(const std::string& name);
     void py_collect(PyObject* func) { collect_functions.push_back(func); }
     void py_end_simulation(PyObject* func) { end_simulation_functions.push_back(func); }
+    void py_require_transactions() { transactions_required = true; }
+    bool py_transactions_required() const { return transactions_required; }
 
     ProcessorIfc* get_proc_ifc() { return &proc_ifc; }
 
@@ -82,11 +82,20 @@ private:
     std::map<int, PyObject*> enumerations;
     std::list<PyObject*> collect_functions;
     std::list<PyObject*> end_simulation_functions;
+    bool transactions_required{false};
 };
 
 static PythonPluginHelper* python_plugin_helper = nullptr;
 static unsigned number_python_plugins = 0;
 static PyObject* enumeration_aliases = nullptr;
+
+std::set<Plugin::Phase> Python::phases() const
+{
+    if (python_plugin_helper && python_plugin_helper->py_transactions_required())
+        return {Phase::DEFINITIONS, Phase::COUNTERS, Phase::EVENTS, Phase::TRANSACTIONS};
+
+    return {Phase::DEFINITIONS, Phase::COUNTERS};
+}
 
 /** Utility function for reporting errors with Python APIs return NULL (Python's
  *  way of reporting an exception). It will print a stack backtrace and throw
@@ -229,6 +238,21 @@ static PyObject* evp_end_simulation(PyObject* self, PyObject* args)
     Py_INCREF(func);
     python_plugin_helper->py_end_simulation(func);
 
+    Py_RETURN_NONE;
+}
+
+static bool py_check_transactions_required()
+{
+    if (python_plugin_helper && python_plugin_helper->py_transactions_required())
+        return true;
+
+    PyErr_SetString(PyExc_RuntimeError, "evp transaction queries require evp.require_transactions()");
+    return false;
+}
+
+static PyObject* evp_require_transactions(PyObject* self, PyObject* args)
+{
+    python_plugin_helper->py_require_transactions();
     Py_RETURN_NONE;
 }
 
@@ -382,6 +406,74 @@ static PyTypeObject EventObjectType = {
 };
 // clang-format on
 
+static PyObject* evp_event_txid(PyObject* self, PyObject* args)
+{
+    PyObject* event;
+
+    if (!PyArg_ParseTuple(args, "O!:event_txid", &EventObjectType, &event))
+        return nullptr;
+    if (!py_check_transactions_required())
+        return nullptr;
+
+    const auto* proto_event = reinterpret_cast<EventObject*>(event)->_tmp_proto;
+    if (!proto_event) {
+        PyErr_SetString(PyExc_RuntimeError, "evp.event_txid() requires an event from an active callback");
+        return nullptr;
+    }
+
+    if (auto txid = python_plugin_helper->get_proc_ifc()->event_txid(*proto_event); txid)
+        return PyLong_FromUnsignedLongLong(*txid);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* evp_transaction_parent(PyObject* self, PyObject* args)
+{
+    unsigned long long txid;
+
+    if (!PyArg_ParseTuple(args, "K:transaction_parent", &txid))
+        return nullptr;
+    if (!py_check_transactions_required())
+        return nullptr;
+
+    if (auto parent = python_plugin_helper->get_proc_ifc()->transaction_parent(txid); parent)
+        return PyLong_FromUnsignedLongLong(*parent);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* evp_is_ancestor(PyObject* self, PyObject* args)
+{
+    unsigned long long ancestor_txid;
+    unsigned long long descendant_txid;
+
+    if (!PyArg_ParseTuple(args, "KK:is_ancestor", &ancestor_txid, &descendant_txid))
+        return nullptr;
+    if (!py_check_transactions_required())
+        return nullptr;
+
+    if (python_plugin_helper->get_proc_ifc()->is_ancestor(ancestor_txid, descendant_txid))
+        Py_RETURN_TRUE;
+
+    Py_RETURN_FALSE;
+}
+
+static PyObject* evp_is_related(PyObject* self, PyObject* args)
+{
+    unsigned long long txid_a;
+    unsigned long long txid_b;
+
+    if (!PyArg_ParseTuple(args, "KK:is_related", &txid_a, &txid_b))
+        return nullptr;
+    if (!py_check_transactions_required())
+        return nullptr;
+
+    if (python_plugin_helper->get_proc_ifc()->is_related(txid_a, txid_b))
+        Py_RETURN_TRUE;
+
+    Py_RETURN_FALSE;
+}
+
 //
 // Define the evp module and its methods.
 //
@@ -395,6 +487,11 @@ static PyMethodDef evp_methods[] = {
      METH_VARARGS,
      "Get a parameter value, None will be returned if it doesn't exist."},
     {"end_simulation", evp_end_simulation, METH_VARARGS, "Schedule a function to run at the end of simulation."},
+    {"require_transactions", evp_require_transactions, METH_NOARGS, "Enable processor transaction tracking."},
+    {"event_txid", evp_event_txid, METH_VARARGS, "Get an event transaction id, or None."},
+    {"transaction_parent", evp_transaction_parent, METH_VARARGS, "Get a transaction parent id, or None."},
+    {"is_ancestor", evp_is_ancestor, METH_VARARGS, "Query whether one transaction is an ancestor of another."},
+    {"is_related", evp_is_related, METH_VARARGS, "Query whether transactions are equal or ancestor-related."},
     {nullptr, nullptr, 0, nullptr}};
 
 static PyModuleDef evp_module = {

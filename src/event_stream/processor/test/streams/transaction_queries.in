@@ -1,0 +1,13 @@
+0 start_transaction txid=1u
+10 probe txid=1u
+20 start_transaction txid=2u parent=1u
+30 probe txid=2u
+40 start_transaction txid=3u parent=1u
+50 probe txid=3u
+60 start_transaction txid=4u parent=2u
+70 probe txid=4u
+80 no_tx
+90 end_transaction txid=4u
+100 end_transaction txid=3u
+110 end_transaction txid=2u
+120 end_transaction txid=1u

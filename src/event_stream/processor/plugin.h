@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -33,6 +34,7 @@ public:
         PARAMETERS,  // plugin requires parameters (report_parameter)
         COUNTERS,    // plugin requires counter values
         EVENTS,      // plugin requires events (process_event)
+        TRANSACTIONS, // plugin requires transaction ancestry tracking
         SIZE
     };
 
@@ -98,6 +100,13 @@ protected:
 
     uint64_t get_current_time() const { return proc_ifc.get_current_time(); }
     uint64_t get_first_event_time() const { return proc_ifc.get_first_event_time(); }
+    std::optional<uint64_t> event_txid(const Event& event) const { return proc_ifc.event_txid(event); }
+    std::optional<uint64_t> transaction_parent(uint64_t txid) const { return proc_ifc.transaction_parent(txid); }
+    bool is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const
+    {
+        return proc_ifc.is_ancestor(ancestor_txid, descendant_txid);
+    }
+    bool is_related(uint64_t txid_a, uint64_t txid_b) const { return proc_ifc.is_related(txid_a, txid_b); }
 
     Counter& get_counter(int counter_id) { return proc_ifc.get_counter(counter_id); }
     const Counter& get_counter(int counter_id) const { return proc_ifc.get_counter(counter_id); }

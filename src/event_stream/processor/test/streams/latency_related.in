@@ -1,0 +1,18 @@
+0 start_transaction txid=1u
+10 parent_a txid=1u
+20 start_transaction txid=2u parent=1u
+30 child_b txid=2u
+40 child_a txid=2u
+50 parent_b txid=1u
+60 start_transaction txid=3u parent=2u
+70 grandparent_a txid=1u
+80 grandchild_b txid=3u
+90 sibling_a txid=2u
+100 start_transaction txid=4u parent=1u
+110 sibling_b txid=4u
+120 same_a txid=3u
+130 same_b txid=3u
+140 end_transaction txid=3u
+150 end_transaction txid=2u
+160 end_transaction txid=4u
+170 end_transaction txid=1u

@@ -783,6 +783,80 @@ a_b/latency:200     1
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedParentChild)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n pc parent_a child_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(pc.count           1
+pc.max_avg_latency 20
+pc.max_latency     20
+pc.min_latency     20
+pc.stdev           0
+pc.sum_latency     20
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedChildParent)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n cp child_a parent_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(cp.count           1
+cp.max_avg_latency 10
+cp.max_latency     10
+cp.min_latency     10
+cp.stdev           0
+cp.sum_latency     10
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedGrandparentGrandchild)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n gg grandparent_a grandchild_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(gg.count           1
+gg.max_avg_latency 10
+gg.max_latency     10
+gg.min_latency     10
+gg.stdev           0
+gg.sum_latency     10
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedExcludesSiblings)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n sib sibling_a sibling_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(sib.count       0
+sib.stdev       0
+sib.sum_latency 0
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedPreservesSameTxid)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n same same_a same_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(same.count           1
+same.max_avg_latency 10
+same.max_latency     10
+same.min_latency     10
+same.stdev           0
+same.sum_latency     10
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedRejectsKeys)
+{
+    auto output = run_expecting_error(fmt::format(
+        "--es {} +latency --include-related -k txid parent_a child_b +summarize", build_es("latency_related.in")));
+    EXPECT_PLUGIN_ERROR(output, "latency", "--include-related cannot be combined with -k|--key\n");
+}
+
 TEST_F(EVPTest, CanMeasureOccupancy)
 {
     auto output = run(fmt::format("--es {} +occupancy alloc dealloc +summarize", build_es("occupancy.in")));
@@ -941,6 +1015,28 @@ NoneType None
 )";
 
     EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, PythonTransactionQueries)
+{
+    auto output = run(fmt::format("--es {} +python {}", build_es("transaction_queries.in"), config("transactions.py")));
+
+    const auto* expected = R"(probe txid=1 parent=None root=False related_2_3=False related_1=True unrelated_99=False
+probe txid=2 parent=1 root=True related_2_3=False related_1=True unrelated_99=False
+probe txid=3 parent=1 root=True related_2_3=False related_1=True unrelated_99=False
+probe txid=4 parent=2 root=True related_2_3=False related_1=True unrelated_99=False
+no_tx txid=None
+)";
+
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesRequireOptIn)
+{
+    auto output = run_expecting_error(
+        fmt::format("--es {} +python {}", build_es("transaction_queries.in"), config("transactions_no_require.py")));
+
+    EXPECT_THAT(output, ::testing::HasSubstr("evp transaction queries require evp.require_transactions()"));
 }
 
 TEST_F(EVPTest, TestVariables)

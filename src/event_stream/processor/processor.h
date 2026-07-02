@@ -90,6 +90,10 @@ public:
 
     uint64_t get_current_time() const override { return current_time; }
     uint64_t get_first_event_time() const override { return first_event_time; }
+    std::optional<uint64_t> event_txid(const Event& event) const override;
+    std::optional<uint64_t> transaction_parent(uint64_t txid) const override;
+    bool is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const override;
+    bool is_related(uint64_t txid_a, uint64_t txid_b) const override;
 
     void count(Plugin* plugin,
                const std::string& counter_spec,
@@ -156,6 +160,12 @@ private:
     std::vector<std::unique_ptr<Plugin>> plugins;
     std::array<std::vector<Plugin*>, static_cast<size_t>(Plugin::Phase::SIZE)> plugins_by_phase;
 
+    std::optional<uint32_t> txid_definition_id;
+    std::optional<uint32_t> parent_definition_id;
+    std::optional<uint32_t> start_transaction_definition_id;
+    std::optional<uint32_t> end_transaction_definition_id;
+    std::map<uint64_t, uint64_t> transaction_parents;
+
     MetricTableTimeSeries ts;
 
     uint64_t current_time{0};
@@ -194,6 +204,8 @@ private:
     void run_time_based_actions();
     void ensure_event_record();
     void handle_event(const Event& event);
+    void update_transaction_tracking(const Event& event);
+    bool should_enable_event_for_transactions(uint32_t event_id) const;
 
     void enable_active_events();
 

@@ -241,7 +241,9 @@ void Processor::start()
  */
 void Processor::process()
 {
-    if (phases.contains(Plugin::Phase::COUNTERS)) {
+    if (phases.contains(Plugin::Phase::COUNTERS) || phases.contains(Plugin::Phase::EVENTS)
+        || phases.contains(Plugin::Phase::TRANSACTIONS))
+    {
         do {
             ensure_event_record();
             current_time = record.event().time();
@@ -293,6 +295,8 @@ void Processor::skip(uint64_t max_time, CounterSet* including)
             for (auto it = counter_range.first; it != counter_range.second; ++it)
                 it->second->increment(event);
         }
+        if (phases.contains(Plugin::Phase::TRANSACTIONS))
+            update_transaction_tracking(event);
 
         // reprocess record only if stopped skipping on time
         if (!max_time || skipping)
@@ -478,6 +482,18 @@ void Processor::save_definition(const Definition& definition)
 {
     definitions[definition.id()] = definition;
     definition_index[definition.name()] = definition.id();
+
+    if (definition.kind() == event_stream_proto::EVENT) {
+        if (definition.name() == "start_transaction")
+            start_transaction_definition_id = definition.id();
+        else if (definition.name() == "end_transaction")
+            end_transaction_definition_id = definition.id();
+    } else if (definition.kind() == event_stream_proto::VALUE) {
+        if (definition.name() == "txid")
+            txid_definition_id = definition.id();
+        else if (definition.name() == "parent")
+            parent_definition_id = definition.id();
+    }
 }
 
 /** Save a Parameter away in our table.
@@ -533,6 +549,9 @@ void Processor::run_time_based_actions()
  */
 void Processor::handle_event(const Event& event)
 {
+    if (phases.contains(Plugin::Phase::TRANSACTIONS))
+        update_transaction_tracking(event);
+
     if (const auto& e = events[event.definition_id()]; e.state == EventState::ENABLED) {
         for (auto* counter : e.counters)
             counter->increment(event);
@@ -540,6 +559,80 @@ void Processor::handle_event(const Event& event)
         auto& event_plugins = plugins_by_phase[static_cast<size_t>(Plugin::Phase::EVENTS)];
         for (auto* pp : event_plugins)
             pp->process_event(event);
+    }
+}
+
+std::optional<uint64_t> Processor::event_txid(const Event& event) const
+{
+    if (!txid_definition_id)
+        return {};
+
+    for (const auto& value : event.values()) {
+        if (value.definition_id() != *txid_definition_id)
+            continue;
+
+        switch (value.values_case()) {
+        case event_stream_proto::Value::kUintValue:
+            return value.uint_value();
+        case event_stream_proto::Value::kIntValue:
+            if (value.int_value() >= 0)
+                return static_cast<uint64_t>(value.int_value());
+            return {};
+        default:
+            return {};
+        }
+    }
+
+    return {};
+}
+
+std::optional<uint64_t> Processor::transaction_parent(uint64_t txid) const
+{
+    if (auto parent = transaction_parents.find(txid); parent != transaction_parents.end())
+        return parent->second;
+
+    return {};
+}
+
+bool Processor::is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const
+{
+    for (auto parent = transaction_parent(descendant_txid); parent; parent = transaction_parent(*parent)) {
+        if (*parent == ancestor_txid)
+            return true;
+    }
+
+    return false;
+}
+
+bool Processor::is_related(uint64_t txid_a, uint64_t txid_b) const
+{
+    return txid_a == txid_b || is_ancestor(txid_a, txid_b) || is_ancestor(txid_b, txid_a);
+}
+
+void Processor::update_transaction_tracking(const Event& event)
+{
+    if (!start_transaction_definition_id || event.definition_id() != *start_transaction_definition_id)
+        return;
+
+    auto txid = event_txid(event);
+    if (!txid || !parent_definition_id)
+        return;
+
+    for (const auto& value : event.values()) {
+        if (value.definition_id() != *parent_definition_id)
+            continue;
+
+        switch (value.values_case()) {
+        case event_stream_proto::Value::kUintValue:
+            transaction_parents[*txid] = value.uint_value();
+            return;
+        case event_stream_proto::Value::kIntValue:
+            if (value.int_value() >= 0)
+                transaction_parents[*txid] = static_cast<uint64_t>(value.int_value());
+            return;
+        default:
+            return;
+        }
     }
 }
 
@@ -602,13 +695,21 @@ void Processor::enable_active_events()
         event_stream_proto::DefinitionResponse definition_response;
         event_stream_proto::Response response;
         definition_response.set_id(event_id);
-        definition_response.set_enable(event.state == EventState::ENABLED);
+        definition_response.set_enable(event.state == EventState::ENABLED
+                                       || should_enable_event_for_transactions(event_id));
         response.set_allocated_definition(&definition_response);
         response_stream->write(response);
         static_cast<void>(response.release_definition());
     }
 
     response_stream->flush();
+}
+
+bool Processor::should_enable_event_for_transactions(uint32_t event_id) const
+{
+    return phases.contains(Plugin::Phase::TRANSACTIONS)
+           && ((start_transaction_definition_id && event_id == *start_transaction_definition_id)
+               || (end_transaction_definition_id && event_id == *end_transaction_definition_id));
 }
 
 /** Called by a plugin to count a particular (possibly factored)

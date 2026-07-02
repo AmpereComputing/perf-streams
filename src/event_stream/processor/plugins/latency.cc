@@ -41,6 +41,9 @@ public:
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
     std::set<Phase> phases() const override
     {
+        if (include_related)
+            return {Phase::DEFINITIONS, Phase::COUNTERS, Phase::EVENTS, Phase::TRANSACTIONS};
+
         return {Phase::DEFINITIONS, Phase::COUNTERS};
     }
 
@@ -98,12 +101,21 @@ private:
     bool factored_histogram{false};
 
     bool tracking_transactions{true};
+    bool include_related{false};
     std::unordered_set<int> key_definitions;
+    struct RelatedStartEvent
+    {
+        uint64_t txid;
+        uint64_t time;
+    };
+    std::vector<RelatedStartEvent> related_start_events;
 
     static std::string build_name(const std::vector<std::string>& events);
     void update_latency(Counter * counter, const event_stream_proto::Event& event, int idx);
+    void update_related_latency(const event_stream_proto::Event& event, int idx);
     void end_transaction(Counter * counter, const event_stream_proto::Event& event);
     void record_latency(LatencyTracker & tracker, uint64_t now, int idx);
+    void record_latency_sample(uint64_t latency, int idx);
     void finalize_latency(const TrackerIter& tracker);
     void aggregate_latency(LatencyTracker & tracker);
     std::optional<uint64_t> get_key(const event_stream_proto::Event& event) const;
@@ -123,11 +135,17 @@ Latency::Latency(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
         if (args.pop("-n|--name", name)) {
         } else if (args.pop("-p|--prefix", prefix)) {
         } else if (args.pop("-k|--key", event)) {
+            if (include_related)
+                throw PluginError{"--include-related cannot be combined with -k|--key"};
             if (tracking_transactions) {
                 key_data_names.clear();
                 tracking_transactions = false;
             }
             key_data_names.emplace(event);
+        } else if (args.pop("--include-related")) {
+            if (!tracking_transactions)
+                throw PluginError{"--include-related cannot be combined with -k|--key"};
+            include_related = true;
         } else if (args.pop("--ignore-missing")) {
             ignore_missing = true;
         } else if (args.pop("--histogram", event)) {
@@ -153,6 +171,9 @@ Latency::Latency(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
 
     aggregated_info.resize(events.size());
     aggregated_hist_info.resize(events.size());
+
+    if (include_related && events.size() != 2)
+        throw PluginError{"--include-related is only supported for event pairs"};
 
     int idx = 0;
 
@@ -189,7 +210,7 @@ Latency::Latency(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
         if (name.empty())
             name = build_name(events);
 
-        if (tracking_transactions)
+        if (tracking_transactions && !include_related)
             on_every("end_transaction", &Latency::end_transaction);
     }
 }
@@ -203,6 +224,7 @@ void Latency::help(int argc, const char** argv)
     -n, --name             Metric name for results
     -p, --prefix <event>   Prefix applied to start and end event
     -k, --key <data-type>  Data to use for event tracking (default: txid)
+    --include-related      Match same-transaction and ancestor/descendant transactions
     --histogram <name>     Emit histogram and use suffix name for results, with optional bucket/bounds settings similar to +count,
                            like: name[min:max:granularity].
     --factored             Emit histogram as factored instead of suffix
@@ -243,6 +265,11 @@ void Latency::define_value(const Definition& value_def)
 
 void Latency::update_latency(Counter* counter, const event_stream_proto::Event& event, int idx)
 {
+    if (include_related) {
+        update_related_latency(event, idx);
+        return;
+    }
+
     if (auto key = get_key(event); key) {
         auto tracker_iter = trackers.find(*key);
         if (tracker_iter == trackers.end())
@@ -252,6 +279,23 @@ void Latency::update_latency(Counter* counter, const event_stream_proto::Event& 
 
         if (!tracking_transactions && static_cast<size_t>(idx + 1) == events.size())
             finalize_latency(tracker_iter);
+    }
+}
+
+void Latency::update_related_latency(const event_stream_proto::Event& event, int idx)
+{
+    auto txid = event_txid(event);
+    if (!txid)
+        return;
+
+    if (idx == 0) {
+        related_start_events.push_back({*txid, event.time()});
+        return;
+    }
+
+    for (const auto& start : related_start_events) {
+        if (is_related(start.txid, *txid))
+            record_latency_sample(event.time() - start.time, 0);
     }
 }
 
@@ -275,6 +319,39 @@ void Latency::finalize_latency(const TrackerIter& tracker_iter)
 {
     aggregate_latency(tracker_iter->second);
     trackers.erase(tracker_iter);
+}
+
+void Latency::record_latency_sample(uint64_t latency, int idx)
+{
+    auto& info = aggregated_info[idx];
+    info.time += latency;
+    info.count += 1;
+
+    if (!latency)
+        return;
+
+    auto& hist_info = aggregated_hist_info[idx];
+    if (histogram) {
+        auto bucket = histogram_bounds ? histogram_bounds->adjust(latency) : latency;
+        ++hist_info.latency_counts[bucket];
+    }
+
+    if ((hist_info.max_N_latencies.size() >= max_latencies_vector_size) && (latency > hist_info.max_N_latencies.back()))
+    {
+        hist_info.max_N_latencies.pop_back();
+        hist_info.max_N_latencies.push_back(latency);
+        std::ranges::sort(hist_info.max_N_latencies, std::greater<>());
+    } else if (hist_info.max_N_latencies.size() < max_latencies_vector_size) {
+        hist_info.max_N_latencies.push_back(latency);
+        std::ranges::sort(hist_info.max_N_latencies, std::greater<>());
+    }
+
+    if (latency < hist_info.min_latency)
+        hist_info.min_latency = latency;
+    if (info.count == 1)
+        return;
+
+    hist_info.stdev = std::sqrt((info.time * info.time + (info.time * info.time) / info.count) / (info.count - 1));
 }
 
 void Latency::end_transaction(Counter* counter, const event_stream_proto::Event& event)
