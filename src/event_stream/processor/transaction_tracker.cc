@@ -1,0 +1,103 @@
+// Copyright (c) 2026, Ampere Computing LLC
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include "transaction_tracker.h"
+
+namespace perf_streams::event_stream::processor {
+
+void TransactionTracker::save_definition(const Definition& definition)
+{
+    if (definition.kind() == event_stream_proto::EVENT) {
+        if (definition.name() == "start_transaction")
+            start_transaction_definition_id = definition.id();
+        else if (definition.name() == "end_transaction")
+            end_transaction_definition_id = definition.id();
+    } else if (definition.kind() == event_stream_proto::VALUE) {
+        if (definition.name() == "txid")
+            txid_definition_id = definition.id();
+        else if (definition.name() == "parent")
+            parent_definition_id = definition.id();
+    }
+}
+
+std::optional<uint64_t> TransactionTracker::event_txid(const Event& event) const
+{
+    if (!txid_definition_id)
+        return {};
+
+    for (const auto& value : event.values()) {
+        if (value.definition_id() != *txid_definition_id)
+            continue;
+
+        switch (value.values_case()) {
+        case event_stream_proto::Value::kUintValue:
+            return value.uint_value();
+        case event_stream_proto::Value::kIntValue:
+            if (value.int_value() >= 0)
+                return static_cast<uint64_t>(value.int_value());
+            return {};
+        default:
+            return {};
+        }
+    }
+
+    return {};
+}
+
+std::optional<uint64_t> TransactionTracker::transaction_parent(uint64_t txid) const
+{
+    if (auto parent = transaction_parents.find(txid); parent != transaction_parents.end())
+        return parent->second;
+
+    return {};
+}
+
+bool TransactionTracker::is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const
+{
+    for (auto parent = transaction_parent(descendant_txid); parent; parent = transaction_parent(*parent)) {
+        if (*parent == ancestor_txid)
+            return true;
+    }
+
+    return false;
+}
+
+bool TransactionTracker::is_related(uint64_t txid_a, uint64_t txid_b) const
+{
+    return txid_a == txid_b || is_ancestor(txid_a, txid_b) || is_ancestor(txid_b, txid_a);
+}
+
+void TransactionTracker::update(const Event& event)
+{
+    if (!start_transaction_definition_id || event.definition_id() != *start_transaction_definition_id)
+        return;
+
+    auto txid = event_txid(event);
+    if (!txid || !parent_definition_id)
+        return;
+
+    for (const auto& value : event.values()) {
+        if (value.definition_id() != *parent_definition_id)
+            continue;
+
+        switch (value.values_case()) {
+        case event_stream_proto::Value::kUintValue:
+            transaction_parents[*txid] = value.uint_value();
+            return;
+        case event_stream_proto::Value::kIntValue:
+            if (value.int_value() >= 0)
+                transaction_parents[*txid] = static_cast<uint64_t>(value.int_value());
+            return;
+        default:
+            return;
+        }
+    }
+}
+
+bool TransactionTracker::should_enable_event(uint32_t event_id) const
+{
+    return (start_transaction_definition_id && event_id == *start_transaction_definition_id)
+           || (end_transaction_definition_id && event_id == *end_transaction_definition_id);
+}
+
+} // namespace perf_streams::event_stream::processor
