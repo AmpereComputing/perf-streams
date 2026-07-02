@@ -76,6 +76,26 @@ private:
         {
         }
 
+        void record_elapsed_time(uint64_t now)
+        {
+            if (last_event_idx < 0)
+                return;
+
+            auto latency = now - last_event_time;
+            auto& time_count = time_per_event[last_event_idx];
+            time_count.time += latency;
+            time_count.count += 1;
+        }
+
+        void set_last_event(uint64_t now, int idx)
+        {
+            last_event_time = now;
+            last_event_idx = idx;
+
+            if (idx == 0)
+                saw_start_event = true;
+        }
+
         LatencyInfo time_per_event;
 
         uint64_t last_event_time;
@@ -299,26 +319,13 @@ void Latency::record_latency_for_key(uint64_t key,
 void Latency::record_latency(LatencyTracker& tracker, uint64_t now, int idx, bool require_sequence)
 {
     if (!require_sequence) {
-        if (tracker.last_event_idx >= 0) {
-            auto latency = now - tracker.last_event_time;
-            auto& time_count = tracker.time_per_event[tracker.last_event_idx];
-            time_count.time += latency;
-            time_count.count += 1;
-        }
-
-        tracker.last_event_time = now;
-        tracker.last_event_idx = idx;
-
-        if (idx == 0)
-            tracker.saw_start_event = true;
-
+        tracker.record_elapsed_time(now);
+        tracker.set_last_event(now, idx);
         return;
     }
 
     if (idx == 0) {
-        tracker.last_event_time = now;
-        tracker.last_event_idx = idx;
-        tracker.saw_start_event = true;
+        tracker.set_last_event(now, idx);
         return;
     }
 
@@ -326,21 +333,15 @@ void Latency::record_latency(LatencyTracker& tracker, uint64_t now, int idx, boo
         return;
 
     if (idx <= tracker.last_event_idx) {
-        tracker.last_event_time = now;
-        tracker.last_event_idx = idx;
+        tracker.set_last_event(now, idx);
         return;
     }
 
     if (idx != tracker.last_event_idx + 1)
         return;
 
-    auto latency = now - tracker.last_event_time;
-    auto& time_count = tracker.time_per_event[tracker.last_event_idx];
-    time_count.time += latency;
-    time_count.count += 1;
-
-    tracker.last_event_time = now;
-    tracker.last_event_idx = idx;
+    tracker.record_elapsed_time(now);
+    tracker.set_last_event(now, idx);
 }
 
 void Latency::finalize_latency(const TrackerIter& tracker_iter)
