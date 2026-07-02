@@ -14,10 +14,7 @@ def print_tx(event):
 
 
 def print_probe(event):
-    print(
-        f"{event.name} parent_2={evp.transaction_parent(2)} "
-        f"related_1_2={evp.is_related(1, 2)}"
-    )
+    print(f"{event.name} parent_2={evp.transaction_parent(2)} related_1_2={evp.is_related(1, 2)}")
 
 
 evp.on("end_transaction", print_tx)

@@ -1031,10 +1031,9 @@ no_tx txid=None
     EXPECT_EQ(output, expected);
 }
 
-TEST_F(EVPTest, PythonTransactionQueriesForgetEndedParentsAfterCallback)
+TEST_F(EVPTest, PythonTransactionQueriesEndParentsAfterCallback)
 {
-    auto output =
-        run(fmt::format("--es {} +python {}", build_es("transaction_retire.in"), config("transactions_retire.py")));
+    auto output = run(fmt::format("--es {} +python {}", build_es("transaction_end.in"), config("transactions_end.py")));
 
     const auto* expected = R"(end_transaction txid=2 parent=1
 probe_after_end parent_2=None related_1_2=False

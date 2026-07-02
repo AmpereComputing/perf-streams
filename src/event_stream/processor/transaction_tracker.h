@@ -22,7 +22,7 @@ struct TransactionTracker
 {
     void save_definition(const Definition& definition);
     void update(const Event& event);
-    void retire_ended_transaction(const Event& event);
+    void end_transaction(const Event& event);
     bool should_enable_event(uint32_t event_id) const;
 
     std::optional<uint64_t> event_txid(const Event& event) const;

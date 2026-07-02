@@ -301,7 +301,7 @@ void Processor::skip(uint64_t max_time, CounterSet* including)
         // reprocess record only if stopped skipping on time
         if (!max_time || skipping) {
             if (phases.contains(Plugin::Phase::TRANSACTIONS))
-                retire_transaction_tracking(event);
+                end_transaction_tracking(event);
             record.Clear();
         }
     } while (skipping && get_next_record());
@@ -554,7 +554,7 @@ void Processor::handle_event(const Event& event)
     }
 
     if (phases.contains(Plugin::Phase::TRANSACTIONS))
-        retire_transaction_tracking(event);
+        end_transaction_tracking(event);
 }
 
 std::optional<uint64_t> Processor::event_txid(const Event& event) const
@@ -582,9 +582,9 @@ void Processor::update_transaction_tracking(const Event& event)
     transaction_tracker.update(event);
 }
 
-void Processor::retire_transaction_tracking(const Event& event)
+void Processor::end_transaction_tracking(const Event& event)
 {
-    transaction_tracker.retire_ended_transaction(event);
+    transaction_tracker.end_transaction(event);
 }
 
 /** Collect metrics.

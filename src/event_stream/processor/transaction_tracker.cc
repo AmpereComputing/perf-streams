@@ -96,7 +96,7 @@ void TransactionTracker::update(const Event& event)
     }
 }
 
-void TransactionTracker::retire_ended_transaction(const Event& event)
+void TransactionTracker::end_transaction(const Event& event)
 {
     if (!end_transaction_definition_id || event.definition_id() != *end_transaction_definition_id)
         return;
