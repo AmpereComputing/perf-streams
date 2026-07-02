@@ -3,6 +3,7 @@ target_sources(evp PRIVATE
   count.cc
   latency.cc
   ls.cc
+  occupancy.cc
   param.cc
   print.cc
   python.cc

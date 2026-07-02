@@ -54,6 +54,10 @@ These plugins aggregate and report their output to a separate file (e.g. CSV) or
   <td>Measure latency between a sequence of events (currently just pairs).</td>
 </tr>
 <tr>
+  <td><code>occupancy</code></td>
+  <td>Accumulate a duration histogram for occupancy between alloc/dealloc event pairs.</td>
+</tr>
+<tr>
   <td><code>rate</code></td>
   <td>Collect a histogram of event occurrences within some time/event region.</td>
 </tr>
@@ -443,6 +447,46 @@ Which could result in metrics like:
     a.min_latency 32
     a.stdev       52
     a.sum_latency 7324
+
+### `occupancy`
+
+#### Arguments
+
+    +occupancy [-n|--name <name>] [--factored] [<interval>] <alloc event> <dealloc event>
+
+#### Description
+
+The `occupancy` plugin tracks one allocation/deallocation event pair and reports
+the cumulative amount of time spent at each occupancy level. Allocation events
+increment occupancy; deallocation events decrement it, clamping at zero if an
+extra deallocation is observed.
+
+An optional interval can be supplied before the event pair. It can use the same
+time format as `+rate` and `-i` (for example `30`, `30ps`, or `1us`) or name an
+event that should act as an interval boundary. When an interval is supplied,
+the plugin reports a rate-style histogram: each boundary, plus the final partial
+interval at the end of simulation, contributes one sample whose bucket is the
+current occupancy at that boundary.
+
+By default, bucket metrics use dotted names:
+
+    occupancy.0 30
+    occupancy.1 45
+    occupancy.2 15
+
+Use `--name` to change the metric prefix. With `--factored`, the same buckets
+are emitted using factored metric names:
+
+    slots/occupancy:0 30
+    slots/occupancy:1 45
+    slots/occupancy:2 15
+
+With an interval, the metric value is the number of interval samples in that
+bucket:
+
+    occupancy.0 2
+    occupancy.1 1
+    occupancy.2 1
 
 ### `rate`
 

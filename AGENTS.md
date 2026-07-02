@@ -30,7 +30,7 @@ a git commit message *and* in the code. Labeling via git messages is
 For git messages, use the following commit template:
 
     <SUMMARY OF CHANGE, max of 50 characters>
-    <DETAILS OF CHANGE, wrap at 72 characters, bulletted list>
+    <DETAILS OF CHANGE, wrap at 72 characters, markdown-like bulleted list>
 
     Assisted-by: <AGENT NAME>:<MODEL VERSION>
 

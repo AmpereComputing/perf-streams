@@ -744,6 +744,97 @@ a_b/latency:200     1
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, CanMeasureOccupancy)
+{
+    auto output = run(fmt::format("--es {} +occupancy alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(occupancy.0 30
+occupancy.1 45
+occupancy.2 15
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, CanMeasureNamedOccupancy)
+{
+    auto output = run(fmt::format("--es {} +occupancy -n slots alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(slots.0 30
+slots.1 45
+slots.2 15
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, CanMeasureFactoredOccupancy)
+{
+    auto output =
+        run(fmt::format("--es {} +occupancy --factored -n slots alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(slots/occupancy:0 30
+slots/occupancy:1 45
+slots/occupancy:2 15
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, CanMeasureOccupancyTimeSeries)
+{
+    auto ts_file = test_file("ts.csv");
+    auto output = run(fmt::format(
+        "--es {} -i 30 +occupancy alloc dealloc +summarize --timeseries {}", build_es("occupancy.in"), ts_file));
+
+    const auto* expected = R"(start_time,stop_time,occupancy.0,occupancy.1,occupancy.2
+10,29,0,10,9
+30,59,9,15,6
+60,89,21,9,0
+90,100,0,11,0
+)";
+
+    auto actual = read_and_remove_file(ts_file);
+    EXPECT_EQ(actual, expected);
+}
+
+TEST_F(EVPTest, CanMeasureOccupancyWithTimeInterval)
+{
+    auto output = run(fmt::format("--es {} +occupancy 30 alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(occupancy.0 2
+occupancy.1 1
+occupancy.2 1
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, CanMeasureOccupancyWithTimeIntervalSuffix)
+{
+    auto output = run(fmt::format("--es {} +occupancy 30ps alloc dealloc +summarize", build_es("occupancy.in")));
+    const auto* expected = R"(occupancy.0 2
+occupancy.1 1
+occupancy.2 1
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, OccupancyWithTimeIntervalDoesNotAdjustAfterFinalBoundary)
+{
+    auto output = run(fmt::format("--es {} +occupancy 50 alloc dealloc +summarize", build_es("occupancy.in")));
+    EXPECT_EQ(output, "occupancy.1 2\n");
+}
+
+TEST_F(EVPTest, CanMeasureOccupancyWithEventInterval)
+{
+    auto output =
+        run(fmt::format("--es {} +occupancy marker alloc dealloc +summarize", build_es("occupancy_event_interval.in")));
+    const auto* expected = R"(occupancy.0 2
+occupancy.1 2
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, OccupancyWithZeroTimeIntervalIsAnError)
+{
+    auto output =
+        run_expecting_error(fmt::format("--es {} +occupancy 0 alloc dealloc +summarize", build_es("occupancy.in")));
+    EXPECT_PLUGIN_ERROR(output, "occupancy", "occupancy interval must be greater than zero\n");
+}
+
 TEST_F(EVPTest, Python)
 {
     auto output = run(fmt::format("--es {} +python {}", build_es("basic.in"), config("pytest.py")));
@@ -1268,25 +1359,25 @@ TEST_F(EVPTest, CanReadFromChainedConfigFile)
 TEST_F(EVPTest, CanMeasureRateWithinTime)
 {
     auto output = run(fmt::format("--es {} +rate 30 -e a +summarize", build_es("series.in")));
-    EXPECT_EQ(output, "a.rate.1 1\na.rate.3 2\na.rate.5 1\n");
+    EXPECT_EQ(output, "a.rate.3 2\na.rate.5 1\n");
 }
 
 TEST_F(EVPTest, CanMeasureRateWithinTimeSuffix)
 {
     auto output = run(fmt::format("--es {} +rate 30ps -e a +summarize", build_es("series.in")));
-    EXPECT_EQ(output, "a.rate.1 1\na.rate.3 2\na.rate.5 1\n");
+    EXPECT_EQ(output, "a.rate.3 2\na.rate.5 1\n");
 }
 
 TEST_F(EVPTest, CanMeasureRateWithinEmptyTimeIntervals)
 {
     auto output = run(fmt::format("--es {} +rate 30 -e a +summarize", build_es("gapped_series.in")));
-    EXPECT_EQ(output, "a.rate.0 2\na.rate.1 3\n");
+    EXPECT_EQ(output, "a.rate.0 2\na.rate.1 2\n");
 }
 
 TEST_F(EVPTest, CanMeasureRateWithinEmptyFinalTimeInterval)
 {
     auto output = run(fmt::format("--es {} +rate 100 -e one +summarize", build_es("basic.in")));
-    EXPECT_EQ(output, "one.rate.0 1\none.rate.1 2\n");
+    EXPECT_EQ(output, "one.rate.1 2\n");
 }
 
 TEST_F(EVPTest, RateWithZeroTimeIntervalIsAnError)
@@ -1298,25 +1389,25 @@ TEST_F(EVPTest, RateWithZeroTimeIntervalIsAnError)
 TEST_F(EVPTest, CanNameRateWithShortOption)
 {
     auto output = run(fmt::format("--es {} +rate 30 -n named -e a +summarize", build_es("series.in")));
-    EXPECT_EQ(output, "a.named.1 1\na.named.3 2\na.named.5 1\n");
+    EXPECT_EQ(output, "a.named.3 2\na.named.5 1\n");
 }
 
 TEST_F(EVPTest, CanNameRateWithLongOption)
 {
     auto output = run(fmt::format("--es {} +rate 30 --name named -e a +summarize", build_es("series.in")));
-    EXPECT_EQ(output, "a.named.1 1\na.named.3 2\na.named.5 1\n");
+    EXPECT_EQ(output, "a.named.3 2\na.named.5 1\n");
 }
 
 TEST_F(EVPTest, CanMeasureRateWithinTimeFactored)
 {
     auto output = run(fmt::format("--es {} +rate 30 --factored -e a +summarize", build_es("series.in")));
-    EXPECT_EQ(output, "a/rate:1 1\na/rate:3 2\na/rate:5 1\n");
+    EXPECT_EQ(output, "a/rate:3 2\na/rate:5 1\n");
 }
 
 TEST_F(EVPTest, CanMeasureRateWithinTimeFactoredBounded)
 {
     auto output = run(fmt::format("--es {} +rate 30 --factored -e a[::2] +summarize", build_es("series.in")));
-    EXPECT_EQ(output, "a/rate:0 1\na/rate:2 2\na/rate:4 1\n");
+    EXPECT_EQ(output, "a/rate:2 2\na/rate:4 1\n");
 }
 
 TEST_F(EVPTest, CanMeasureRateWithinEvent)

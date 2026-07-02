@@ -5,9 +5,8 @@
 #include "event_stream/processor/bounds.h"
 #include "event_stream/processor/counter.h"
 #include "event_stream/processor/metric_table.h"
-#include "event_stream/processor/plugin.h"
+#include "event_stream/processor/plugins/interval_histogram.h"
 #include "event_stream/processor/processor_ifc.h"
-#include "event_stream/processor/utils.h"
 
 #include <cstdint>
 #include <list>
@@ -19,7 +18,7 @@
 
 namespace perf_streams::event_stream::processor {
 
-EVP_PLUGIN(Rate, "rate", "Count events with some time-slice")
+EVP_PLUGIN_FROM(Rate, "rate", "Count events with some time-slice", IntervalHistogramPlugin)
 {
 public:
     Rate(ProcessorIfc & proc_ifc, Args & args);
@@ -28,10 +27,6 @@ public:
     void collect_within_event(Counter * counter, const Event& event);
     void collect_within_time(uint64_t current_time, uint64_t expiry);
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
-    void end_simulation() override
-    {
-        ended = true;
-    }
     std::set<Phase> phases() const override
     {
         return {Phase::EVENTS};
@@ -40,11 +35,7 @@ public:
 private:
     void collect_within();
     void collect_empty_time_intervals(uint64_t count);
-    std::string format_event_name(const std::string& event_name, const std::string& name, int64_t rate) const;
 
-    bool ended = false;
-    bool factored = false;
-    uint64_t time_interval = 0;
     struct Setting
     {
         int64_t previous_value = 0;
@@ -56,7 +47,7 @@ private:
     std::map<int, std::map<int64_t, uint64_t>> histogram;
 };
 
-Rate::Rate(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
+Rate::Rate(ProcessorIfc& proc_ifc, Args& args) : IntervalHistogramPlugin{proc_ifc}
 {
     std::string name;
     std::string interval;
@@ -65,7 +56,7 @@ Rate::Rate(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
     while (args) {
         std::string arg;
         if (args.pop("--factored")) {
-            factored = true;
+            set_factored_metrics(true);
         } else if (args.pop("-n|--name", name)) {
             counters.emplace_back(name, CounterSet{});
         } else if (args.pop("-e|--event", arg)) {
@@ -85,14 +76,7 @@ Rate::Rate(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}
 
     args.done();
 
-    if (is_time_spec(interval)) {
-        time_interval = parse_time_spec(interval);
-        if (time_interval == 0)
-            throw PluginError{"rate interval must be greater than zero"};
-        at_every(interval, &Rate::collect_within_time);
-    } else {
-        on_every(interval, &Rate::collect_within_event);
-    }
+    configure_interval(interval, "rate", &Rate::collect_within_event, &Rate::collect_within_time);
 }
 
 void Rate::collect_within()
@@ -126,23 +110,19 @@ void Rate::collect_empty_time_intervals(uint64_t count)
 void Rate::collect_within_event(Counter* counter, const Event& event)
 {
     collect_within();
+    mark_interval_update(event.time());
 }
 
 void Rate::collect_within_time(uint64_t current_time, uint64_t expiry)
 {
     collect_within();
-    collect_empty_time_intervals((current_time / time_interval) - (expiry / time_interval));
-}
-
-std::string Rate::format_event_name(const std::string& event_name, const std::string& name, int64_t rate) const
-{
-    return factored ? fmt::format("{}/{}:{}", event_name, name, rate) : fmt::format("{}.{}.{}", event_name, name, rate);
+    collect_empty_time_intervals(empty_time_boundaries_after(current_time, expiry));
+    mark_interval_update(latest_time_boundary(current_time, expiry));
 }
 
 void Rate::collect(MetricSeries& metrics, uint64_t trigger_time)
 {
-    if (ended)
-        collect_within();
+    finish_final_interval(trigger_time, [this] { collect_within(); });
 
     for (auto& [name, name_counters] : counters) {
         for (auto counter_id : name_counters) {
@@ -150,7 +130,7 @@ void Rate::collect(MetricSeries& metrics, uint64_t trigger_time)
             const auto& event_name = get_definition(counter.event_definition_id).name();
 
             for (auto [rate, count] : histogram[counter_id])
-                metrics[format_event_name(event_name, name, rate)] = count;
+                metrics[format_histogram_bucket(event_name, name, name, rate)] = count;
         }
     }
 }
