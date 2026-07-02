@@ -1031,6 +1031,19 @@ no_tx txid=None
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, PythonTransactionQueriesForgetEndedParentsAfterCallback)
+{
+    auto output =
+        run(fmt::format("--es {} +python {}", build_es("transaction_retire.in"), config("transactions_retire.py")));
+
+    const auto* expected = R"(end_transaction txid=2 parent=1
+probe_after_end parent_2=None related_1_2=False
+end_transaction txid=1 parent=None
+)";
+
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, PythonTransactionQueriesRequireOptIn)
 {
     auto output = run_expecting_error(

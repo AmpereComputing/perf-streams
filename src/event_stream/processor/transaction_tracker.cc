@@ -96,6 +96,15 @@ void TransactionTracker::update(const Event& event)
     }
 }
 
+void TransactionTracker::retire_ended_transaction(const Event& event)
+{
+    if (!end_transaction_definition_id || event.definition_id() != *end_transaction_definition_id)
+        return;
+
+    if (auto txid = event_txid(event); txid)
+        transaction_parents.erase(*txid);
+}
+
 bool TransactionTracker::should_enable_event(uint32_t event_id) const
 {
     return (start_transaction_definition_id && event_id == *start_transaction_definition_id)

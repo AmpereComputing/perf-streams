@@ -202,6 +202,7 @@ private:
     void ensure_event_record();
     void handle_event(const Event& event);
     void update_transaction_tracking(const Event& event);
+    void retire_transaction_tracking(const Event& event);
     bool should_enable_event_for_transactions(uint32_t event_id) const;
 
     void enable_active_events();
