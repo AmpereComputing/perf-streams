@@ -15,6 +15,7 @@
 #include <fmt/ostream.h>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -759,6 +760,49 @@ int Processor::build_counter(int event_definition_id,
     return add_counter(std::move(counter)).first;
 }
 
+namespace {
+
+void add_signed_factor_value(FactorValueMatcher& matcher, int definition_id, int64_t value)
+{
+    if (value >= 0)
+        matcher.values.emplace_back(definition_id, static_cast<uint64_t>(value));
+    matcher.values.emplace_back(-definition_id, static_cast<uint64_t>(value));
+}
+
+void add_unsigned_factor_value(FactorValueMatcher& matcher, int definition_id, uint64_t value)
+{
+    matcher.values.emplace_back(definition_id, value);
+    if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+        matcher.values.emplace_back(-definition_id, value);
+}
+
+bool parse_numeric_factor_value(const std::string& text, int definition_id, FactorValueMatcher& matcher)
+{
+    try {
+        size_t parsed = 0;
+
+        if (!text.empty() && text.front() == '-') {
+            const auto value = std::stoll(text, &parsed);
+            if (parsed != text.size())
+                return false;
+
+            add_signed_factor_value(matcher, definition_id, value);
+            return true;
+        }
+
+        const auto value = std::stoull(text, &parsed);
+        if (parsed != text.size())
+            return false;
+
+        add_unsigned_factor_value(matcher, definition_id, value);
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+} // namespace
+
 /** Add factors to a Counter.
  *
  *  Factors allow us to separate counts based on event data. E.g.
@@ -784,23 +828,49 @@ int Processor::build_counter(int event_definition_id,
  */
 void Processor::add_factors(Counter& counter, const std::string& event_name, const CounterSpec& spec) const
 {
+    const auto value_matcher_for = [this](const Definition& definition,
+                                          const CounterSpec::FactorSpec& factor) -> std::optional<FactorValueMatcher> {
+        if (!factor.value)
+            return std::nullopt;
+
+        FactorValueMatcher matcher;
+        if (parse_numeric_factor_value(*factor.value, definition.id(), matcher))
+            return matcher;
+
+        if (definition.has_enumeration_id() && has_enumeration(definition.enumeration_id())) {
+            for (const auto& [value, name] : get_enumeration(definition.enumeration_id()).values()) {
+                if (name == *factor.value) {
+                    add_signed_factor_value(matcher, definition.id(), value);
+                    return matcher;
+                }
+            }
+        }
+
+        throw std::runtime_error{fmt::format(
+            R"(factor "{}" value "{}" is not numeric and is not an enum name)", factor.name, *factor.value)};
+    };
+
     for (const auto& factor : spec.factors) {
+        const auto add_factor = [&](const Definition& definition) {
+            counter.add_factor(definition.id(), factor.bounds.get(), value_matcher_for(definition, factor));
+        };
+
         size_t const last_dot = event_name.rfind('.');
 
         if (last_dot != std::string::npos) {
             auto scoped_name = fmt::format("{}.{}", event_name.substr(0, last_dot), factor.name);
 
             if (has_definition(scoped_name)) {
-                counter.add_factor(get_definition(scoped_name).id(), factor.bounds.get());
+                add_factor(get_definition(scoped_name));
                 continue;
             }
         }
 
         if (has_definition(factor.name)) {
-            counter.add_factor(get_definition(factor.name).id(), factor.bounds.get());
+            add_factor(get_definition(factor.name));
             continue;
         } else if (factor.name[0] == '.' && has_definition(factor.name.substr(1))) {
-            counter.add_factor(get_definition(factor.name.substr(1)).id(), factor.bounds.get());
+            add_factor(get_definition(factor.name.substr(1)));
             continue;
         }
 

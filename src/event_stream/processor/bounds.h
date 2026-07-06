@@ -44,6 +44,8 @@ struct FactorBounds
             this->sequence = EXPONENTIAL;
     }
 
+    bool operator==(const FactorBounds& other) const = default;
+
     // spec in form of "[min:max]" or "[min:max:granularity]" or "[min:max:granularity:sequence]"
     // where values can be left out as long as ':' remains (e.g. [::granularity])
     static FactorBounds from_spec(const std::string& spec)

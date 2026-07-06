@@ -257,8 +257,10 @@ Examples:
 +count -a                            # count all events
 +count -e cache.lookup               # count cache lookups
 +count -e cache.lookup/hit           # count cache lookups factored by the "hit" data item
-+count -e cache.lookup/hit:1         # count cache lookups by "hit" with value 1
-+count -e cache.lookup/hit:[0:16:2]  # count cache lookups by "hit", adjusting values to a
++count -e cache.lookup/hit:1         # count only cache lookups where "hit" has value 1
++count -e cache.lookup/type:write    # enum names can be used as factor-value filters
++count -e cache.lookup/hit:1/way     # filters by "hit" and still factors by "way"
++count -e cache.lookup/hit[0:16:2]   # count cache lookups by "hit", adjusting values to a
                                      # minimum of 0, maximum of 16, and granularity of 2
 +count --accumulate mem_resp/latency # accumulate total value of mem_resp/latency
 ```
@@ -293,7 +295,10 @@ factoring on strings or floating point data.
 
 Values can be restricted either by:
 
-* `-e */factor_name:value`: counts only events where `factor_name = value`
+* `-e */factor_name:value`: counts only events where `factor_name = value`; the
+  base event total is filtered too. `value` can be a numeric literal or an enum
+  name, and valued factors can be mixed with unvalued factors such as
+  `event/data1:3/data2`.
 * `-e */factor_name[min:max:granularity:sequence]`: adjusts factor value into a "histogram" format where:
   * `min`: minimum value emitted, any values *below* this will be set to `min`
   * `max`: maximum value emitted, any values *above* this will be set to `max`

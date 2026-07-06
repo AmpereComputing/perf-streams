@@ -7,6 +7,7 @@
 #include "event_stream/processor/bounds.h"
 
 #include <stdexcept>
+#include <utility>
 
 namespace perf_streams::event_stream::processor {
 
@@ -20,12 +21,12 @@ Counter::Counter(const Counter& other)
         factored_counts = std::make_unique<FactoredCounts>(*other.factored_counts);
 }
 
-void Counter::add_factor(int id, FactorBounds* bounds)
+void Counter::add_factor(int id, FactorBounds* bounds, std::optional<FactorValueMatcher> value_matcher)
 {
     if (!factored_counts)
         factored_counts = std::make_unique<FactoredCounts>();
 
-    factored_counts->add_factor(id, bounds);
+    factored_counts->add_factor(id, bounds, std::move(value_matcher));
 }
 
 void Counter::accumulate_data(const event_stream_proto::Event& event)

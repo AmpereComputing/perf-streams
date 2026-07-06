@@ -235,6 +235,51 @@ ev/a:4 4
 )");
 }
 
+TEST_F(EVPTest, CountByFactorValue)
+{
+    auto output = run(fmt::format("--es {} +count -e ev/a:2 +summarize", build_es("factors.in")));
+    EXPECT_EQ(output, R"(ev     2
+ev/a:2 2
+)");
+}
+
+TEST_F(EVPTest, CountByMixedFactorValue)
+{
+    auto output = run(fmt::format("--es {} +count -e ev/a:2/b +summarize", build_es("factors.in")));
+    EXPECT_EQ(output, R"(ev         2
+ev/a:2/b:1 2
+)");
+}
+
+TEST_F(EVPTest, CountByMultipleFactorValues)
+{
+    auto output = run(fmt::format("--es {} +count -e ev/a:3/b:2 +summarize", build_es("factors.in")));
+    EXPECT_EQ(output, R"(ev         1
+ev/a:3/b:2 1
+)");
+}
+
+TEST_F(EVPTest, CountByEnumFactorValue)
+{
+    auto output = run(fmt::format("--es {} +count -e ev/myenum:b +summarize", build_es("enums.in")));
+    EXPECT_EQ(output, R"(ev          1
+ev/myenum:b 1
+)");
+
+    output = run(fmt::format("--es {} +count -e ev/myenum:2 +summarize", build_es("enums.in")));
+    EXPECT_EQ(output, R"(ev          1
+ev/myenum:b 1
+)");
+}
+
+TEST_F(EVPTest, CountByFactorValueRemovesDistinctCounters)
+{
+    auto output = run(fmt::format("--es {} +count -e ev/a:2 -x ev/a:3 +summarize", build_es("factors.in")));
+    EXPECT_EQ(output, R"(ev     2
+ev/a:2 2
+)");
+}
+
 TEST_F(EVPTest, CountByFactorsWithMalformedBucketsRaiseError)
 {
     EXPECT_NE(run_with_status(fmt::format("--es {} +count -e ev/a[] +summarize", build_es("factors.in"))).second, 0);

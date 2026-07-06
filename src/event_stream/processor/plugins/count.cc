@@ -80,8 +80,11 @@ void Count::help(int argc, const char** argv)
 
     -a                          Count all events.
     -e <event>                  Count given event.
-                                Factors can be selected with: -e */factor_name:value (value is optional).
-                                Additionally, factors value can be adjusted with: -e */factor_name[min:max:granularity].
+                                Factors can be selected with: -e */factor_name.
+                                Factor values filter counts with: -e */factor_name:value.
+                                Values may be numeric or enum names.
+                                Unvalued factors can be mixed with value filters.
+                                Additionally, factor values can be adjusted with: -e */factor_name[min:max:granularity].
     -x <event>                  Exclude counting a given event (or factor).
     --accumulate <event data>   Accumulate data value for event.
     --no-enum                   Do not expand enumerations factors into string values

@@ -8,20 +8,57 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <set>
 #include <stdexcept>
 
 namespace perf_streams::event_stream::processor {
 
-void FactoredCounts::add_factor(int definition_id, FactorBounds* bounds)
+void FactoredCounts::add_factor(int definition_id,
+                                FactorBounds* bounds,
+                                std::optional<FactorValueMatcher> value_matcher)
 {
     if (bounds)
         factor_bounds.emplace(definition_id, *bounds);
+    if (value_matcher)
+        factor_value_matchers.emplace(definition_id, std::move(*value_matcher));
     factor_position.emplace(definition_id, factor_position.size());
+}
+
+bool FactoredCounts::increment(const event_stream_proto::Event& event)
+{
+    if (!matches_value_filters(event))
+        return false;
+
+    ++counts[to_factor_key(event)];
+    return true;
 }
 
 bool FactoredCounts::operator==(const FactoredCounts& other) const
 {
-    return std::ranges::equal(factors(), other.factors());
+    return factor_position == other.factor_position && factor_bounds == other.factor_bounds
+           && factor_value_matchers == other.factor_value_matchers;
+}
+
+bool FactoredCounts::matches_value_filters(const event_stream_proto::Event& event) const
+{
+    if (factor_value_matchers.empty())
+        return true;
+
+    std::set<int> matched_factors;
+
+    for (int i = 0; i < event.values_size(); i++) {
+        const event_stream_proto::Value& value = event.values(i);
+        const auto matcher = factor_value_matchers.find(value.definition_id());
+        if (matcher == factor_value_matchers.end())
+            continue;
+
+        if (!std::ranges::contains(matcher->second.values, to_factor_value(value)))
+            return false;
+
+        matched_factors.emplace(value.definition_id());
+    }
+
+    return matched_factors.size() == factor_value_matchers.size();
 }
 
 FactorKey FactoredCounts::to_factor_key(const event_stream_proto::Event& event)

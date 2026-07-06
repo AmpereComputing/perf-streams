@@ -37,7 +37,7 @@ public:
     Counter(const Counter& other);
     Counter(Counter&&) = default;
 
-    void add_factor(int id, FactorBounds* bounds);
+    void add_factor(int id, FactorBounds* bounds, std::optional<FactorValueMatcher> value_matcher = std::nullopt);
 
     int64_t get_count() const { return count; }
     void set_count(int64_t val) { count = val; }
@@ -58,8 +58,8 @@ public:
 
     void increment(const event_stream_proto::Event& event)
     {
-        if (factored_counts)
-            factored_counts->increment(event);
+        if (factored_counts && !factored_counts->increment(event))
+            return;
 
         if (data_definition_id)
             accumulate_data(event);
