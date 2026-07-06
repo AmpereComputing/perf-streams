@@ -46,8 +46,7 @@ bool FactoredCounts::matches_value_filters(const event_stream_proto::Event& even
 
     std::set<int> matched_factors;
 
-    for (int i = 0; i < event.values_size(); i++) {
-        const event_stream_proto::Value& value = event.values(i);
+    for (const auto& value : event.values()) {
         const auto matcher = factor_value_matchers.find(value.definition_id());
         if (matcher == factor_value_matchers.end())
             continue;
@@ -65,8 +64,7 @@ FactorKey FactoredCounts::to_factor_key(const event_stream_proto::Event& event)
 {
     FactorKey key(factor_position.size());
 
-    for (int i = 0; i < event.values_size(); i++) {
-        const event_stream_proto::Value& value = event.values(i);
+    for (const auto& value : event.values()) {
         if (auto pos = factor_position.find(value.definition_id()); pos != factor_position.end()) {
             auto key_value = to_factor_value(value);
             if (!factor_bounds.empty()) {

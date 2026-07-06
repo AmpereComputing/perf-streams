@@ -70,6 +70,7 @@ public:
         if (count == trip && action)
             action(this, event);
     }
+    bool collected() const { return !has_factor_value_filters(); }
 
     bool operator==(const Counter& other) const;
     bool operator!=(const Counter& other) const { return !operator==(other); }

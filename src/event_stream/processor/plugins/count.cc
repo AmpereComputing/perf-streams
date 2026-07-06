@@ -163,7 +163,7 @@ void Count::collect(MetricSeries& metrics, uint64_t trigger_time)
     for (auto counter_id : counters) {
         const auto& counter = get_counter(counter_id);
         auto name = counter_name(counter);
-        if (!counter.has_factor_value_filters())
+        if (counter.collected())
             metrics[name] = counter.get_count();
 
         if (const auto* factored_counts = counter.get_factored_counts(); factored_counts) {
