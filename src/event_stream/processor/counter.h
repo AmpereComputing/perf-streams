@@ -49,6 +49,7 @@ public:
 
     bool factored() const { return static_cast<bool>(factored_counts); }
     auto factors() const { return factored_counts->factors(); }
+    bool has_factor_value_filters() const { return factored_counts && factored_counts->has_value_filters(); }
     const FactoredCountTable* get_factored_counts() const
     {
         return factored_counts ? &factored_counts->get_factored_counts() : nullptr;

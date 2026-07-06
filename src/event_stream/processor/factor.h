@@ -53,6 +53,7 @@ public:
     bool increment(const event_stream_proto::Event& event);
 
     auto factors() const { return std::views::keys(factor_position); }
+    bool has_value_filters() const { return !factor_value_matchers.empty(); }
     const FactoredCountTable& get_factored_counts() const { return counts; }
 
     bool operator==(const FactoredCounts& other) const;

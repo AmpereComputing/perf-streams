@@ -295,10 +295,10 @@ factoring on strings or floating point data.
 
 Values can be restricted either by:
 
-* `-e */factor_name:value`: counts only events where `factor_name = value`; the
-  base event total is filtered too. `value` can be a numeric literal or an enum
-  name, and valued factors can be mixed with unvalued factors such as
-  `event/data1:3/data2`.
+* `-e */factor_name:value`: counts only events where `factor_name = value`.
+  `value` can be a numeric literal or an enum name, and valued factors can be
+  mixed with unvalued factors such as `event/data1:3/data2`. Value-filtered
+  counters omit the base event metric because that total would also be filtered.
 * `-e */factor_name[min:max:granularity:sequence]`: adjusts factor value into a "histogram" format where:
   * `min`: minimum value emitted, any values *below* this will be set to `min`
   * `max`: maximum value emitted, any values *above* this will be set to `max`
