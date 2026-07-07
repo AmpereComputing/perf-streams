@@ -8,8 +8,6 @@ set(HEADERS
     event_stream_proto.h
     event_stream_reader.h
     event_stream_recorder.h)
-set(EXTENSION_HEADERS
-    extensions/transactions.h)
 set(SOURCES
     transaction.cc
     event_definition.cc
@@ -35,10 +33,10 @@ add_protobuf(
 install(TARGETS event_stream
         ARCHIVE DESTINATION ${INSTALL_LIB_PATH}
         PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDE_PATH}/event_stream)
-install(FILES ${EXTENSION_HEADERS} DESTINATION ${INSTALL_INCLUDE_PATH}/event_stream/extensions)
 install(FILES event_stream.py DESTINATION ${INSTALL_PYTHON_PATH})
 
 add_subdirectory(processor)
 add_subdirectory(tools)
 add_subdirectory(test)
+add_subdirectory(extensions)
 add_subdirectory(testing)
