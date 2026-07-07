@@ -9,7 +9,7 @@ set(HEADERS
     event_stream_reader.h
     event_stream_recorder.h)
 set(EXTENSION_HEADERS
-    extensions/transaction_extension.h)
+    extensions/transactions.h)
 set(SOURCES
     transaction.cc
     event_definition.cc

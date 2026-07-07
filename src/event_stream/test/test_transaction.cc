@@ -8,7 +8,7 @@
 #include "event_stream/testing/event_stream_dummy.h"
 #include "event_stream/testing/event_stream_mock.h"
 #include "event_stream/testing/test.h"
-#include "event_stream/extensions/transaction_extension.h"
+#include "event_stream/extensions/transactions.h"
 
 #include <cstdint>
 #include <limits>
@@ -22,13 +22,14 @@
 using perf_streams::event_stream::EventStreamExtension;
 using perf_streams::event_stream::EventStreamLayer;
 using perf_streams::event_stream::EventStreamWith;
-using perf_streams::event_stream::TransactionExtension;
 using perf_streams::event_stream::testing::EventTest;
+
+namespace extensions = perf_streams::event_stream::extensions;
 
 struct TransactionTest : public EventTest
 {
     TransactionTest() : transactional_stream(*event_stream) {}
-    EventStreamWith<TransactionExtension> transactional_stream;
+    EventStreamWith<extensions::Transactions> transactional_stream;
 
     void SetUp() override
     {

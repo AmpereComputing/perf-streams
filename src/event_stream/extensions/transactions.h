@@ -17,12 +17,12 @@
 #include <tuple>
 #include <utility>
 
-namespace perf_streams::event_stream {
+namespace perf_streams::event_stream::extensions {
 
 using TransactionHandle = Transaction*;
 
 template<EventStreamLayer Base>
-class TransactionExtension : public Base
+class Transactions : public Base
 {
 public:
     using Base::Base;
@@ -96,8 +96,12 @@ private:
     } definition;
 };
 
+} // namespace perf_streams::event_stream::extensions
+
+namespace perf_streams::event_stream {
+
 template<>
-struct EventStreamExtensionTraits<TransactionExtension>
+struct EventStreamExtensionTraits<extensions::Transactions>
 {
     using requirements = std::tuple<>;
 };
