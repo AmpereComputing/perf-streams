@@ -96,14 +96,10 @@ private:
     } definition;
 };
 
-} // namespace perf_streams::event_stream::extensions
-
-namespace perf_streams::event_stream {
-
 template<>
-struct EventStreamExtensionTraits<extensions::Transactions>
+struct EventStreamExtensionTraits<Transactions>
 {
     using requirements = std::tuple<>;
 };
 
-} // namespace perf_streams::event_stream
+} // namespace perf_streams::event_stream::extensions

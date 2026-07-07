@@ -70,11 +70,15 @@ public:
     int dependent_value() const { return this->extension_value() + 1; }
 };
 
+namespace perf_streams::event_stream::extensions {
+
 template<>
-struct perf_streams::event_stream::EventStreamExtensionTraits<TestExtensionB>
+struct EventStreamExtensionTraits<TestExtensionB>
 {
     using requirements = std::tuple<EventStreamExtension<TestExtensionA>>;
 };
+
+} // namespace perf_streams::event_stream::extensions
 
 static_assert(perf_streams::event_stream::event_stream_extensions_valid_v<TestExtensionA, TestExtensionB>);
 static_assert(!perf_streams::event_stream::event_stream_extensions_valid_v<TestExtensionB>);

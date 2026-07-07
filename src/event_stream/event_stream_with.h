@@ -27,11 +27,15 @@ template<template<typename> typename Extension>
 struct EventStreamExtension
 {};
 
+namespace extensions {
+
 template<template<typename> typename Extension>
 struct EventStreamExtensionTraits
 {
     using requirements = std::tuple<>;
 };
+
+} // namespace extensions
 
 namespace detail {
 
@@ -62,7 +66,7 @@ template<template<typename> typename... Seen,
          template<typename> typename... Remaining>
 struct EventStreamExtensionsAreValid<EventStreamExtensionList<Seen...>, Current, Remaining...>
     : std::bool_constant<
-          RequirementsAreSatisfied<typename EventStreamExtensionTraits<Current>::requirements, Seen...>::value
+          RequirementsAreSatisfied<typename extensions::EventStreamExtensionTraits<Current>::requirements, Seen...>::value
           && EventStreamExtensionsAreValid<EventStreamExtensionList<Seen..., Current>, Remaining...>::value>
 {};
 
