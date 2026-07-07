@@ -21,6 +21,7 @@
 namespace perf_streams::event_stream {
 
 class EventDefinition;
+class EventStreamForwarder;
 
 using EventType = uint32_t;
 using DataType = uint32_t;
@@ -246,7 +247,7 @@ protected:
     size_t enumeration_index{0};
 
     friend class EventStreamBroadcast;
-    friend class TransactionalEventStream;
+    friend class EventStreamForwarder;
 
 public:
     static Definitions& global_definitions();

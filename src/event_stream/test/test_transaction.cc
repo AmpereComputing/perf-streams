@@ -4,10 +4,11 @@
 #include "event_stream/event_definition.h"
 #include "event_stream/event_stream.h"
 #include "event_stream/event_stream_sink.h"
+#include "event_stream/event_stream_with.h"
 #include "event_stream/testing/event_stream_dummy.h"
 #include "event_stream/testing/event_stream_mock.h"
 #include "event_stream/testing/test.h"
-#include "event_stream/transactional_event_stream.h"
+#include "event_stream/transaction_extension.h"
 
 #include <cstdint>
 #include <limits>
@@ -18,13 +19,16 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-using perf_streams::event_stream::TransactionalEventStream;
+using perf_streams::event_stream::EventStreamExtension;
+using perf_streams::event_stream::EventStreamLayer;
+using perf_streams::event_stream::EventStreamWith;
+using perf_streams::event_stream::TransactionExtension;
 using perf_streams::event_stream::testing::EventTest;
 
 struct TransactionTest : public EventTest
 {
     TransactionTest() : transactional_stream(*event_stream) {}
-    TransactionalEventStream transactional_stream;
+    EventStreamWith<TransactionExtension> transactional_stream;
 
     void SetUp() override
     {
@@ -45,4 +49,48 @@ TEST_F(TransactionTest, RecordEventWithTransaction)
     auto* transaction = transactional_stream.begin_transaction(0);
     events->event.at(0, *transaction);
     transactional_stream.end_transaction(transaction, 0);
+}
+
+template<EventStreamLayer Base>
+class TestExtensionA : public Base
+{
+public:
+    using Base::Base;
+
+    int extension_value() const { return 41; }
+};
+
+template<EventStreamLayer Base>
+class TestExtensionB : public Base
+{
+public:
+    using Base::Base;
+
+    int dependent_value() const { return this->extension_value() + 1; }
+};
+
+template<>
+struct perf_streams::event_stream::EventStreamExtensionTraits<TestExtensionB>
+{
+    using requirements = std::tuple<EventStreamExtension<TestExtensionA>>;
+};
+
+static_assert(perf_streams::event_stream::event_stream_extensions_valid_v<TestExtensionA, TestExtensionB>);
+static_assert(!perf_streams::event_stream::event_stream_extensions_valid_v<TestExtensionB>);
+
+TEST_F(TransactionTest, ForwarderUsesWrappedDefinitions)
+{
+    EventStreamWith<> stream(*event_stream);
+    perf_streams::event_stream::EventDefinition event(stream, "wrapped_event", "wrapped event");
+
+    EXPECT_CALL(*event_announcer, post_event("wrapped_event", 7));
+
+    event.at(7);
+}
+
+TEST_F(TransactionTest, ExtensionsCanBuildOnEarlierExtensions)
+{
+    EventStreamWith<TestExtensionA, TestExtensionB> stream(*event_stream);
+
+    EXPECT_EQ(stream.dependent_value(), 42);
 }
