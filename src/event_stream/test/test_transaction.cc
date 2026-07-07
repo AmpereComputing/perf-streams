@@ -8,7 +8,7 @@
 #include "event_stream/testing/event_stream_dummy.h"
 #include "event_stream/testing/event_stream_mock.h"
 #include "event_stream/testing/test.h"
-#include "event_stream/transaction_extension.h"
+#include "event_stream/extensions/transaction_extension.h"
 
 #include <cstdint>
 #include <limits>
@@ -90,7 +90,7 @@ TEST_F(TransactionTest, ForwarderUsesWrappedDefinitions)
 
 TEST_F(TransactionTest, ExtensionsCanBuildOnEarlierExtensions)
 {
-    EventStreamWith<TestExtensionA, TestExtensionB> stream(*event_stream);
+    EventStreamWith<TestExtensionA, TestExtensionB> const stream(*event_stream);
 
     EXPECT_EQ(stream.dependent_value(), 42);
 }
