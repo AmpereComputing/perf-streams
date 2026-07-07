@@ -66,7 +66,8 @@ template<template<typename> typename... Seen,
          template<typename> typename... Remaining>
 struct EventStreamExtensionsAreValid<EventStreamExtensionList<Seen...>, Current, Remaining...>
     : std::bool_constant<
-          RequirementsAreSatisfied<typename extensions::EventStreamExtensionTraits<Current>::requirements, Seen...>::value
+          RequirementsAreSatisfied<typename extensions::EventStreamExtensionTraits<Current>::requirements,
+                                   Seen...>::value
           && EventStreamExtensionsAreValid<EventStreamExtensionList<Seen..., Current>, Remaining...>::value>
 {};
 
