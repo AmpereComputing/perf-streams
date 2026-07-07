@@ -101,70 +101,51 @@ public:
         share_state(*this->event_stream);
     }
 
-    void post_event(EventType event_type, TimeType time) override
-    {
-        event_stream->post_event(event_type, time);
-        sync_catch_up_indexes();
-    }
+    void post_event(EventType event_type, TimeType time) override { event_stream->post_event(event_type, time); }
     EventHandle open_event(EventType event_type, TimeType time) override
     {
-        auto* event = event_stream->open_event(event_type, time);
-        sync_catch_up_indexes();
-        return event;
+        return event_stream->open_event(event_type, time);
     }
-    void close_event(EventHandle event) override
-    {
-        event_stream->close_event(event);
-        sync_catch_up_indexes();
-    }
+    void close_event(EventHandle event) override { event_stream->close_event(event); }
 
     void add_int_data(EventHandle event, DataType event_data_type, std::int64_t value) override
     {
         event_stream->add_int_data(event, event_data_type, value);
-        sync_catch_up_indexes();
     }
     void add_uint_data(EventHandle event, DataType event_data_type, std::uint64_t value) override
     {
         event_stream->add_uint_data(event, event_data_type, value);
-        sync_catch_up_indexes();
     }
     void add_string_data(EventHandle event, DataType event_data_type, const std::string& value) override
     {
         event_stream->add_string_data(event, event_data_type, value);
-        sync_catch_up_indexes();
     }
 
     void set_bool_parameter(const std::string& name, const std::string& description, bool value) override
     {
         event_stream->set_bool_parameter(name, description, value);
-        sync_catch_up_indexes();
     }
     void set_int_parameter(const std::string& name, const std::string& description, std::int64_t value) override
     {
         event_stream->set_int_parameter(name, description, value);
-        sync_catch_up_indexes();
     }
     void set_uint_parameter(const std::string& name, const std::string& description, std::uint64_t value) override
     {
         event_stream->set_uint_parameter(name, description, value);
-        sync_catch_up_indexes();
     }
     void set_double_parameter(const std::string& name, const std::string& description, double value) override
     {
         event_stream->set_double_parameter(name, description, value);
-        sync_catch_up_indexes();
     }
     void set_string_parameter(const std::string& name,
                               const std::string& description,
                               const std::string& value) override
     {
         event_stream->set_string_parameter(name, description, value);
-        sync_catch_up_indexes();
     }
     void set_json_parameter(const std::string& name, const std::string& description, const std::string& value) override
     {
         event_stream->set_json_parameter(name, description, value);
-        sync_catch_up_indexes();
     }
 
     void start_simulation() override
