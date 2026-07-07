@@ -1,6 +1,6 @@
 set(TESTS
     test_event.cc
-    test_transaction.cc
+    ../extensions/test/test_transactions.cc
     test_writer.cc
     test_reader.cc)
 
