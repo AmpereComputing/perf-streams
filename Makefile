@@ -18,6 +18,13 @@ export CMAKE_GENERATOR=Ninja
 CMAKE_ARGS:=
 CMAKE_CONFIGURE_ARGS=-D CMAKE_BUILD_TYPE=$(BUILD_TYPE) $(CMAKE_ARGS)
 
+# Benchmark options
+BENCHMARK_BUILD_DIRECTORY?=build-benchmark
+BENCHMARK_OUTPUT?=$(BENCHMARK_BUILD_DIRECTORY)/benchmark.json
+BENCHMARK_ARGS?=
+BASELINE?=
+CANDIDATE?=$(BENCHMARK_OUTPUT)
+
 # Testing options
 CTEST_BIN:=ctest
 CTEST_OPTIONS:=--output-on-failure
@@ -199,6 +206,17 @@ check:
 .PHONY: check-all
 check-all: check
 	$(MAKE) clang-tidy-check
+
+.PHONY: benchmark
+benchmark:
+	mkdir -p $(BENCHMARK_BUILD_DIRECTORY)
+	cd $(BENCHMARK_BUILD_DIRECTORY) && $(CMAKE) -D CMAKE_BUILD_TYPE=$(BUILD_TYPE) -D PERF_STREAMS_BUILD_BENCHMARKS=ON $(CMAKE_ARGS) -S ..
+	$(NINJA) -C $(BENCHMARK_BUILD_DIRECTORY) $(BUILD_ARGS) perf_streams_benchmarks
+	$(BENCHMARK_BUILD_DIRECTORY)/perf_streams_benchmarks --benchmark_out=$(BENCHMARK_OUTPUT) --benchmark_out_format=json $(BENCHMARK_ARGS)
+
+.PHONY: benchmark-compare
+benchmark-compare:
+	$(PYTHON) benchmarks/compare_benchmarks.py --baseline "$(BASELINE)" --candidate "$(CANDIDATE)"
 
 .PHONY: package
 package:

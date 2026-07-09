@@ -11,6 +11,7 @@ pkgs.mkShell.override{stdenv = pkgs.gccStdenv; } {
     fmt
     gcovr
     gdb
+    google-benchmark
     gtest
     hatch
     ninja

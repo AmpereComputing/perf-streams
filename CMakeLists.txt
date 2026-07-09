@@ -87,6 +87,11 @@ find_package(Protobuf REQUIRED CONFIG)
 
 find_package(Boost 1.65.0 REQUIRED CONFIG COMPONENTS filesystem iostreams process program_options regex)
 
+option(PERF_STREAMS_BUILD_BENCHMARKS "Build perf-streams benchmark executables" OFF)
+if(PERF_STREAMS_BUILD_BENCHMARKS)
+    find_package(benchmark REQUIRED)
+endif()
+
 find_package(GTest REQUIRED)
 add_library(gtest ALIAS GTest::gtest)
 add_library(gtest_main ALIAS GTest::gtest_main)
@@ -105,3 +110,6 @@ include_directories(src)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/src)
 
 add_subdirectory(src)
+if(PERF_STREAMS_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
