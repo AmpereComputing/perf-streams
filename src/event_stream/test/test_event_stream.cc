@@ -53,6 +53,7 @@ TEST_F(EventStreamExtensionTest, ForwarderUsesWrappedDefinitions)
 {
     EventStreamWith<> stream(*event_stream);
     EventDefinition event(stream, "wrapped_event", "wrapped event");
+    stream.start_simulation();
 
     EXPECT_CALL(*event_announcer, post_event("wrapped_event", 7));
 
