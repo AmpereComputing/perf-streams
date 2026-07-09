@@ -13,7 +13,6 @@ namespace perf_streams::event_stream::testing {
 
 void EventStreamDummy::post_event(EventType event_type, std::uint64_t time)
 {
-    catch_up();
     if (announcer)
         announcer->post_event(event_type_to_name.at(event_type), time);
     if (enabled)
@@ -23,7 +22,6 @@ void EventStreamDummy::post_event(EventType event_type, std::uint64_t time)
 
 EventHandle EventStreamDummy::open_event(EventType event_type, std::uint64_t time)
 {
-    catch_up();
     if (announcer)
         announcer->post_event(event_type_to_name.at(event_type), time);
     if (enabled)
@@ -95,6 +93,11 @@ void EventStreamDummy::set_json_parameter(const std::string& name,
                                           const std::string& value)
 {
     json_param_values[name] = value;
+}
+
+void EventStreamDummy::start_simulation()
+{
+    catch_up();
 }
 
 bool EventStreamDummy::get_bool_parameter(const std::string& event_name) const

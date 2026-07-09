@@ -64,6 +64,7 @@ public:
     void set_string_parameter(const std::string& name, const std::string& description, const std::string& value) final;
     void set_json_parameter(const std::string& name, const std::string& description, const std::string& value) final;
 
+    void start_simulation() final;
     void reset();
     void enable() final { enabled = true; }
     void disable() final { enabled = false; }

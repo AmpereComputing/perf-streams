@@ -162,8 +162,6 @@ void EventStreamProto::set_json_parameter(const std::string& name,
 
 void EventStreamProto::post_event(EventType event_type, std::uint64_t time)
 {
-    catch_up();
-
     auto id = current_event_id++;
     event_stream_proto::Event event_proto;
 
@@ -176,8 +174,6 @@ void EventStreamProto::post_event(EventType event_type, std::uint64_t time)
 
 EventHandle EventStreamProto::open_event(EventType event_type, std::uint64_t time)
 {
-    catch_up();
-
     auto id = current_event_id++;
     auto* eh = event_handle_pool.construct();
 

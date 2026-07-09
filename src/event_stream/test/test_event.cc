@@ -89,6 +89,7 @@ struct EventTestWithData : public EventTestWithDataBase<T>
         EXPECT_CALL(*this->event_announcer, post_event("start_transaction", _)).WillRepeatedly(Return());
         EXPECT_CALL(*this->event_announcer, post_event("end_transaction", _)).WillRepeatedly(Return());
         this->events = std::make_unique<typename EventTestWithDataBase<T>::EventExample>(*this->event_stream);
+        this->event_stream->start_simulation();
     };
 
     void do_integer_test(const T& param, bool is_unsigned = false)

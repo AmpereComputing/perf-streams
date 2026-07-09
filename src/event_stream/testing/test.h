@@ -71,6 +71,7 @@ struct EventTest : public EventStreamTest
     {
         EventStreamTest::SetUp();
         events = std::make_unique<EventDefinitionExample>(*event_stream, "event");
+        event_stream->start_simulation();
     }
 
     void TearDown() override { events.reset(); }
@@ -97,6 +98,7 @@ struct EventTestWithMultipleData : public EventStreamTest
     {
         EventStreamTest::SetUp();
         events = std::make_unique<EventTest>(*event_stream);
+        event_stream->start_simulation();
     }
 
     void TearDown() override { events.reset(); }
