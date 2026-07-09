@@ -95,6 +95,11 @@ void EventStreamDummy::set_json_parameter(const std::string& name,
     json_param_values[name] = value;
 }
 
+void EventStreamDummy::start_simulation()
+{
+    catch_up();
+}
+
 bool EventStreamDummy::get_bool_parameter(const std::string& event_name) const
 {
     return bool_param_values.at(event_name);

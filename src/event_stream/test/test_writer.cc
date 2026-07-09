@@ -61,6 +61,26 @@ protected:
         return perf_streams::protobuf_utils::clear_and_read_delimited_from(input_stream.get(), &read_record, nullptr);
     }
 
+    void expect_start_simulation_record()
+    {
+        ASSERT_TRUE(read());
+        ASSERT_TRUE(read_record.has_control());
+        EXPECT_EQ(event_stream_proto::START_SIMULATION, read_record.control().type());
+    }
+
+    void read_event_after_start_simulation()
+    {
+        do
+            ASSERT_TRUE(read());
+        while (read_record.has_definition() || read_record.has_enumeration());
+
+        ASSERT_TRUE(read_record.has_control());
+        EXPECT_EQ(event_stream_proto::START_SIMULATION, read_record.control().type());
+
+        ASSERT_TRUE(read());
+        ASSERT_TRUE(read_record.has_event());
+    }
+
     int fd{0};
     event_stream_proto::Record read_record;
     std::unique_ptr<google::protobuf::io::FileInputStream> input_stream;
@@ -88,12 +108,15 @@ TEST_F(EventStreamTest, PostEvent)
     {
         auto es = make_es();
         auto event_def = es->define_event("foo", "a foo");
+        es->start_simulation();
         es->post_event(event_def, 200);
     }
 
     ASSERT_TRUE(read());
     ASSERT_TRUE(read_record.has_definition());
     EXPECT_EQ("foo", read_record.definition().name());
+
+    expect_start_simulation_record();
 
     ASSERT_TRUE(read());
     ASSERT_TRUE(read_record.has_event());
@@ -106,12 +129,15 @@ TEST_F(EventStreamTest, DisabledPostEvent)
         auto es = make_es();
         es->disable();
         auto event_def = es->define_event("foo", "a foo");
+        es->start_simulation();
         es->post_event(event_def, 200);
     }
 
     ASSERT_TRUE(read());
     ASSERT_TRUE(read_record.has_definition());
     EXPECT_EQ("foo", read_record.definition().name());
+
+    expect_start_simulation_record();
 
     ASSERT_FALSE(read());
 }
@@ -122,6 +148,7 @@ TEST_F(EventStreamTest, PostEventWithOneValue)
         auto es = make_es();
         auto event_def = es->define_event("foo", "a foo");
         auto val_def = es->define_data("bar", "a bar");
+        es->start_simulation();
         auto event = es->open_event(event_def, 200);
         es->add_int_data(event, val_def, 1234);
         es->close_event(event);
@@ -134,6 +161,8 @@ TEST_F(EventStreamTest, PostEventWithOneValue)
     ASSERT_TRUE(read());
     ASSERT_TRUE(read_record.has_definition());
     EXPECT_EQ("bar", read_record.definition().name());
+
+    expect_start_simulation_record();
 
     ASSERT_TRUE(read());
     ASSERT_TRUE(read_record.has_event());
@@ -149,17 +178,14 @@ TEST_F(EventStreamTest, PostEventWithTwoValues)
         auto event_def = es->define_event("foo", "a foo");
         auto bar_def = es->define_data("bar", "a bar");
         auto baz_def = es->define_data("baz", "a foo");
+        es->start_simulation();
         auto event = es->open_event(event_def, 1950);
         es->add_int_data(event, bar_def, 1234);
         es->add_int_data(event, baz_def, 5678);
         es->close_event(event);
     }
 
-    do
-        ASSERT_TRUE(read());
-    while (read_record.has_definition());
-
-    ASSERT_TRUE(read_record.has_event());
+    read_event_after_start_simulation();
     EXPECT_EQ(1950, read_record.event().time());
     EXPECT_EQ(2, read_record.event().values_size());
     EXPECT_EQ(1234, read_record.event().values(0).int_value());
@@ -172,16 +198,13 @@ TEST_F(EventStreamTest, PostStringValue)
         auto es = make_es();
         auto event_def = es->define_event("foo", "a foo");
         auto val_def = es->define_data("bar", "a bar");
+        es->start_simulation();
         auto event = es->open_event(event_def, 200);
         es->add_string_data(event, val_def, "hello world");
         es->close_event(event);
     }
 
-    do
-        ASSERT_TRUE(read());
-    while (read_record.has_definition());
-
-    ASSERT_TRUE(read_record.has_event());
+    read_event_after_start_simulation();
     ASSERT_EQ(1, read_record.event().values_size());
     EXPECT_EQ(read_record.event().values(0).values_case(), event_stream_proto::Value::kStringValue);
     EXPECT_EQ(read_record.event().values(0).string_value(), "hello world");
@@ -204,6 +227,7 @@ TEST_F(EventStreamTest, PostAllIntegralTypes)
         auto es = make_es();
         auto event_def = es->define_event("foo", "a foo");
         auto val_def = es->define_data("bar", "a bar");
+        es->start_simulation();
         auto event = es->open_event(event_def, 1950);
 
         es->add_int_data(event, val_def, sch);
@@ -220,11 +244,7 @@ TEST_F(EventStreamTest, PostAllIntegralTypes)
         es->close_event(event);
     }
 
-    do
-        ASSERT_TRUE(read());
-    while (read_record.has_definition());
-
-    ASSERT_TRUE(read_record.has_event());
+    read_event_after_start_simulation();
     ASSERT_EQ(10, read_record.event().values_size());
     EXPECT_EQ(read_record.event().values(0).int_value(), sch);
     EXPECT_EQ(read_record.event().values(1).uint_value(), uch);
