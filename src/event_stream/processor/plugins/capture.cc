@@ -23,7 +23,9 @@
 #include <string>
 #include <unistd.h>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
+#include <vector>
 
 namespace perf_streams::event_stream::processor {
 
@@ -150,13 +152,19 @@ public:
     void process_event(const Event& event) override;
 
 private:
-    std::map<std::string, std::variant<int64_t, uint64_t>> filter_data_by_name;
-    std::unordered_map<int, std::variant<int64_t, uint64_t>> filter_data;
+    using FilterValue = std::variant<int64_t, uint64_t>;
+
+    std::map<std::string, std::vector<FilterValue>> filter_data_by_name;
+    std::unordered_map<int, std::vector<FilterValue>> filter_data;
 
     bool filtering{false};
+    bool require_all_filters{false};
 
     void add_filter(const std::string& filter_spec);
-    bool filter_match(const Event& event);
+    bool filter_match(const Event& event) const;
+    bool value_matches_filter(const event_stream_proto::Value& value, const FilterValue& filter_value) const;
+    bool value_matches_filters(const event_stream_proto::Value& value, const std::vector<FilterValue>& filter_values)
+        const;
 };
 
 Capture::Capture(ProcessorIfc& proc_ifc, Args& args) : CaptureBase(proc_ifc, args)
@@ -167,6 +175,8 @@ Capture::Capture(ProcessorIfc& proc_ifc, Args& args) : CaptureBase(proc_ifc, arg
         if (args.pop("--filter", arg)) {
             add_filter(arg);
             filtering = true;
+        } else if (args.pop("--all-filters")) {
+            require_all_filters = true;
         } else {
             break;
         }
@@ -177,10 +187,12 @@ Capture::Capture(ProcessorIfc& proc_ifc, Args& args) : CaptureBase(proc_ifc, arg
 
 void Capture::help(int argc, const char** argv)
 {
-    print_help(argv[0], "capture", "<output filename> [-f|--force] [--filter <filter spec>]", R"(Arguments:
+    print_help(
+        argv[0], "capture", "<output filename> [-f|--force] [--all-filters] [--filter <filter spec>]...", R"(Arguments:
 
     --force, -f                Overwrite output file if it exists
     --filter                   Only include events/transactions matching some data value (i.e. <data_name>=<data_value>)
+    --all-filters              Require all filtered data names to match. Repeated filters for a data name are alternatives.
     --help, -h                 This help message.
 )");
 }
@@ -211,32 +223,58 @@ void Capture::add_filter(const std::string& filter_spec)
     std::string value_str = filter_spec.substr(eq + 1);
 
     if (value_str.size() > 2 && value_str[0] == '0' && value_str[1] == 'x')
-        filter_data_by_name[data_name] = static_cast<uint64_t>(std::stoull(value_str, nullptr, 0));
+        filter_data_by_name[data_name].push_back(static_cast<uint64_t>(std::stoull(value_str, nullptr, 0)));
     else
-        filter_data_by_name[data_name] = static_cast<int64_t>(std::stoll(value_str, nullptr, 0));
+        filter_data_by_name[data_name].push_back(static_cast<int64_t>(std::stoll(value_str, nullptr, 0)));
 }
 
-bool Capture::filter_match(const Event& event)
+bool Capture::filter_match(const Event& event) const
 {
+    if (require_all_filters && filter_data.size() != filter_data_by_name.size())
+        return false;
+
+    std::unordered_set<int> matched_filter_ids;
+
     for (int i = 0; i < event.values_size(); i++) {
         const event_stream_proto::Value& value = event.values(i);
         auto it = filter_data.find(value.definition_id());
 
-        if (it != filter_data.end()) {
-            if (value.values_case() == event_stream_proto::Value::kIntValue) {
-                if (std::holds_alternative<int64_t>(it->second))
-                    return value.int_value() == std::get<int64_t>(it->second);
-                else if (std::holds_alternative<uint64_t>(it->second))
-                    return value.int_value() == static_cast<int64_t>(std::get<uint64_t>(it->second));
-            } else if (value.values_case() == event_stream_proto::Value::kUintValue) {
-                if (std::holds_alternative<int64_t>(it->second))
-                    return value.uint_value() == static_cast<uint64_t>(std::get<int64_t>(it->second));
-                else if (std::holds_alternative<uint64_t>(it->second))
-                    return value.uint_value() == std::get<uint64_t>(it->second);
-            }
+        if (it != filter_data.end() && value_matches_filters(value, it->second)) {
+            if (!require_all_filters)
+                return true;
 
-            return false;
+            matched_filter_ids.insert(value.definition_id());
+            if (matched_filter_ids.size() == filter_data.size())
+                return true;
         }
+    }
+
+    return false;
+}
+
+bool Capture::value_matches_filter(const event_stream_proto::Value& value, const FilterValue& filter_value) const
+{
+    if (value.values_case() == event_stream_proto::Value::kIntValue) {
+        if (std::holds_alternative<int64_t>(filter_value))
+            return value.int_value() == std::get<int64_t>(filter_value);
+        if (std::holds_alternative<uint64_t>(filter_value))
+            return value.int_value() == static_cast<int64_t>(std::get<uint64_t>(filter_value));
+    } else if (value.values_case() == event_stream_proto::Value::kUintValue) {
+        if (std::holds_alternative<int64_t>(filter_value))
+            return value.uint_value() == static_cast<uint64_t>(std::get<int64_t>(filter_value));
+        if (std::holds_alternative<uint64_t>(filter_value))
+            return value.uint_value() == std::get<uint64_t>(filter_value);
+    }
+
+    return false;
+}
+
+bool Capture::value_matches_filters(const event_stream_proto::Value& value,
+                                    const std::vector<FilterValue>& filter_values) const
+{
+    for (const auto& filter_value : filter_values) {
+        if (value_matches_filter(value, filter_value))
+            return true;
     }
 
     return false;

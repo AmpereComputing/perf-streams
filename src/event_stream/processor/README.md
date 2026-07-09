@@ -338,7 +338,7 @@ rollup:
 
 #### Arguments
 
-    +capture <output filename> [-f|--force] [--filter <filter spec>]
+    +capture <output filename> [-f|--force] [--all-filters] [--filter <filter spec>]...
 
 #### Description
 
@@ -359,7 +359,10 @@ write something like this:
 
     +capture tx_1234.es --filter txid=1234
 
-The format of a filter specification is `<data_name>=<data_value>`.
+The format of a filter specification is `<data_name>=<data_value>`. With
+multiple `--filter` options, events are captured if any filter matches. Use
+`--all-filters` to require every filtered data name to match. Repeated filters
+for the same data name are treated as alternative values.
 
 ### `latency`
 
