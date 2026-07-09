@@ -21,14 +21,12 @@ void EventStreamRecorder::record_event(const RecorderEventHandle& event)
 
 void EventStreamRecorder::post_event(EventType event_type, std::uint64_t time)
 {
-    catch_up();
     if (listening(event_type))
         record_event({event_type, time});
 }
 
 EventHandle EventStreamRecorder::open_event(EventType event_type, std::uint64_t time)
 {
-    catch_up();
     if (listening(event_type))
         return event_handle_pool.construct(event_type, time);
     return event_handle_pool.construct();
