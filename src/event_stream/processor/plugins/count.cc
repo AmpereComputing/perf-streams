@@ -80,8 +80,12 @@ void Count::help(int argc, const char** argv)
 
     -a                          Count all events.
     -e <event>                  Count given event.
-                                Factors can be selected with: -e */factor_name:value (value is optional).
-                                Additionally, factors value can be adjusted with: -e */factor_name[min:max:granularity].
+                                Factors can be selected with: -e */factor_name.
+                                Factor values filter counts with: -e */factor_name:value.
+                                Values may be numeric or enum names.
+                                Unvalued factors can be mixed with value filters.
+                                Value-filtered counters omit the base event metric.
+                                Additionally, factor values can be adjusted with: -e */factor_name[min:max:granularity].
     -x <event>                  Exclude counting a given event (or factor).
     --accumulate <event data>   Accumulate data value for event.
     --no-enum                   Do not expand enumerations factors into string values
@@ -159,7 +163,8 @@ void Count::collect(MetricSeries& metrics, uint64_t trigger_time)
     for (auto counter_id : counters) {
         const auto& counter = get_counter(counter_id);
         auto name = counter_name(counter);
-        metrics[name] = counter.get_count();
+        if (counter.collected())
+            metrics[name] = counter.get_count();
 
         if (const auto* factored_counts = counter.get_factored_counts(); factored_counts) {
             for (const auto& [factor_key, count] : *factored_counts) {

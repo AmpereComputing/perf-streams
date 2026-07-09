@@ -37,7 +37,7 @@ public:
     Counter(const Counter& other);
     Counter(Counter&&) = default;
 
-    void add_factor(int id, FactorBounds* bounds);
+    void add_factor(int id, FactorBounds* bounds, std::optional<FactorValueMatcher> value_matcher = std::nullopt);
 
     int64_t get_count() const { return count; }
     void set_count(int64_t val) { count = val; }
@@ -49,6 +49,7 @@ public:
 
     bool factored() const { return static_cast<bool>(factored_counts); }
     auto factors() const { return factored_counts->factors(); }
+    bool has_factor_value_filters() const { return factored_counts && factored_counts->has_value_filters(); }
     const FactoredCountTable* get_factored_counts() const
     {
         return factored_counts ? &factored_counts->get_factored_counts() : nullptr;
@@ -58,8 +59,8 @@ public:
 
     void increment(const event_stream_proto::Event& event)
     {
-        if (factored_counts)
-            factored_counts->increment(event);
+        if (factored_counts && !factored_counts->increment(event))
+            return;
 
         if (data_definition_id)
             accumulate_data(event);
@@ -69,6 +70,7 @@ public:
         if (count == trip && action)
             action(this, event);
     }
+    bool collected() const { return !has_factor_value_filters(); }
 
     bool operator==(const Counter& other) const;
     bool operator!=(const Counter& other) const { return !operator==(other); }

@@ -12,6 +12,7 @@
 #include <boost/functional/hash.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <ranges>
 #include <unordered_map>
 #include <utility>
@@ -35,14 +36,24 @@ inline size_t hash_value(const FactorKey& key)
 
 using FactoredCountTable = std::unordered_map<FactorKey, int64_t, boost::hash<FactorKey>>;
 
+struct FactorValueMatcher
+{
+    std::vector<FactorKey::value_type> values;
+
+    bool operator==(const FactorValueMatcher& other) const = default;
+};
+
 class FactoredCounts
 {
 public:
-    void add_factor(int definition_id, FactorBounds* bounds);
+    void add_factor(int definition_id,
+                    FactorBounds* bounds,
+                    std::optional<FactorValueMatcher> value_matcher = std::nullopt);
 
-    void increment(const event_stream_proto::Event& event) { ++counts[to_factor_key(event)]; }
+    bool increment(const event_stream_proto::Event& event);
 
     auto factors() const { return std::views::keys(factor_position); }
+    bool has_value_filters() const { return !factor_value_matchers.empty(); }
     const FactoredCountTable& get_factored_counts() const { return counts; }
 
     bool operator==(const FactoredCounts& other) const;
@@ -51,8 +62,10 @@ public:
 private:
     std::unordered_map<int, FactorBounds> factor_bounds;
     std::unordered_map<int, int> factor_position;
+    std::unordered_map<int, FactorValueMatcher> factor_value_matchers;
     FactoredCountTable counts;
 
+    bool matches_value_filters(const event_stream_proto::Event& event) const;
     FactorKey to_factor_key(const event_stream_proto::Event& event);
 
     static FactorKey::value_type to_factor_value(const event_stream_proto::Value& value);
