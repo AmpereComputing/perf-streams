@@ -3,6 +3,7 @@
 
 #include "compressed_fstream.h"
 
+#include <algorithm>
 #include <boost/iostreams/device/file.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -18,6 +19,8 @@
 
 namespace perf_streams::protobuf_utils {
 
+namespace {
+
 unsigned compression_threads(unsigned max)
 {
     return std::min(max, std::max(1U, std::thread::hardware_concurrency()));
@@ -29,6 +32,8 @@ auto lzma_params(unsigned max_threads = 4)
     params.threads = compression_threads(max_threads);
     return params;
 }
+
+} // namespace
 
 CompressionType compression_from_filename(const char* filename)
 {
