@@ -3,7 +3,9 @@
 
 """Protobuf stream read/write utilities."""
 
+import subprocess
 from io import DEFAULT_BUFFER_SIZE, IOBase
+from os import cpu_count
 
 try:
     import lzma
@@ -23,7 +25,13 @@ class ProtobufStreamReader:
             self.file = filename
             self.close_when_done = False
         elif filename.endswith(".xz"):
-            self.file = lzma.open(filename, "rb")
+            try:
+                self._file_process = subprocess.Popen(
+                    ["xz", "-T", str(min(4, cpu_count())), "-d", "-c", filename], stdout=subprocess.PIPE
+                )
+                self.file = self._file_process.stdout
+            except FileNotFoundError:
+                self.file = lzma.open(filename, "rb")
             self.close_when_done = True
         else:
             self.file = open(filename, "rb")  # noqa: SIM115
