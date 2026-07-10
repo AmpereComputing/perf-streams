@@ -13,6 +13,7 @@
 #include "event_stream/processor/utils.h"
 #include "protobuf_utils/protobuf_stream.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -55,7 +56,11 @@ public:
     void add_plugin(std::unique_ptr<Plugin> plugin)
     {
         auto& p = plugins.emplace_back(std::move(plugin));
-        phases.merge(p->phases());
+        auto phases = p->phases();
+        for (auto phase : phases)
+            plugins_by_phase[static_cast<size_t>(phase)].emplace_back(p.get());
+
+        this->phases.merge(phases);
     }
 
     //
@@ -149,6 +154,7 @@ private:
 
     std::set<Plugin::Phase> phases;
     std::vector<std::unique_ptr<Plugin>> plugins;
+    std::array<std::vector<Plugin*>, static_cast<size_t>(Plugin::Phase::SIZE)> plugins_by_phase;
 
     MetricTableTimeSeries ts;
 

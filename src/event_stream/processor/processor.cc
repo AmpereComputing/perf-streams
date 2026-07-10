@@ -241,7 +241,7 @@ void Processor::start()
  */
 void Processor::process()
 {
-    if (phases.contains(Plugin::Phase::EVENTS)) {
+    if (phases.contains(Plugin::Phase::COUNTERS)) {
         do {
             ensure_event_record();
             current_time = record.event().time();
@@ -356,8 +356,9 @@ bool Processor::get_next_event()
  */
 void Processor::announce_definitions()
 {
-    for (const auto& [_, def] : definitions) {
-        for (auto& pp : plugins) {
+    auto& definition_plugins = plugins_by_phase[static_cast<size_t>(Plugin::Phase::DEFINITIONS)];
+    for (const auto& def : std::views::values(definitions)) {
+        for (auto* pp : definition_plugins) {
             if (def.kind() == event_stream_proto::EVENT)
                 pp->define_event(def);
             else
@@ -365,8 +366,8 @@ void Processor::announce_definitions()
         }
     }
 
-    for (const auto& [_, def] : enumerations)
-        for (auto& pp : plugins)
+    for (const auto& def : std::views::values(enumerations))
+        for (auto* pp : definition_plugins)
             pp->define_enumeration(def);
 }
 
@@ -374,11 +375,10 @@ void Processor::announce_definitions()
  */
 void Processor::report_parameters()
 {
-    for (auto& param : parameters) {
-        for (auto& pp : plugins) {
-            pp->report_parameter(param.second);
-        }
-    }
+    auto& parameter_plugins = plugins_by_phase[static_cast<size_t>(Plugin::Phase::PARAMETERS)];
+    for (const auto& param : std::views::values(parameters))
+        for (auto* pp : parameter_plugins)
+            pp->report_parameter(param);
 }
 
 /** Transition from definitions to events.
@@ -535,7 +535,8 @@ void Processor::handle_event(const Event& event)
         for (auto* counter : e.counters)
             counter->increment(event);
 
-        for (auto& pp : plugins)
+        auto& event_plugins = plugins_by_phase[static_cast<size_t>(Plugin::Phase::EVENTS)];
+        for (auto* pp : event_plugins)
             pp->process_event(event);
     }
 }

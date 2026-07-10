@@ -46,7 +46,7 @@ public:
     void end_simulation() override;
     std::set<Phase> phases() const override
     {
-        return {Phase::EVENTS};
+        return {Phase::DEFINITIONS, Phase::COUNTERS};
     }
 
 private:

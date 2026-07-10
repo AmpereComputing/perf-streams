@@ -28,6 +28,7 @@ public:
     void start_simulation() override;
     void end_simulation() override;
     void report(MetricTableTimeSeries& ts) override;
+    std::set<Phase> phases() const override { return {Phase::DEFINITIONS, Phase::PARAMETERS, Phase::EVENTS}; }
 
     static const char* category() { return "(ES output)"; }
 

@@ -36,7 +36,7 @@ public:
     {
         if (list_events)
             return {Phase::DEFINITIONS};
-        return {Phase::EVENTS};
+        return {Phase::COUNTERS};
     }
 
 private:
