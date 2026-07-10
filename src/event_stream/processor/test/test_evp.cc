@@ -1183,6 +1183,51 @@ TEST_F(EVPTest, CanCaptureWithFilter)
     std::remove(captured.c_str());
 }
 
+TEST_F(EVPTest, CanCaptureWithAnyFilter)
+{
+    auto captured = test_file("captured.es");
+    auto output =
+        run(fmt::format("--es {} +count -a +capture {} --filter a=2 --filter b=2", build_es("factors.in"), captured));
+    EXPECT_EQ(
+        output,
+        "Captured 1 event definitions, 2 value definitions, 0 enum definitions, 3 parameter values, and 4 events.\n");
+    std::remove(captured.c_str());
+}
+
+TEST_F(EVPTest, CanCaptureWithRepeatedFilterAlternatives)
+{
+    auto captured = test_file("captured.es");
+    auto output =
+        run(fmt::format("--es {} +count -a +capture {} --filter a=2 --filter a=3", build_es("factors.in"), captured));
+    EXPECT_EQ(
+        output,
+        "Captured 1 event definitions, 2 value definitions, 0 enum definitions, 3 parameter values, and 5 events.\n");
+    std::remove(captured.c_str());
+}
+
+TEST_F(EVPTest, CanCaptureWithAllFilters)
+{
+    auto captured = test_file("captured.es");
+    auto output = run(fmt::format(
+        "--es {} +count -a +capture {} --all-filters --filter a=2 --filter b=1", build_es("factors.in"), captured));
+    EXPECT_EQ(
+        output,
+        "Captured 1 event definitions, 2 value definitions, 0 enum definitions, 3 parameter values, and 2 events.\n");
+    std::remove(captured.c_str());
+}
+
+TEST_F(EVPTest, CanCaptureWithAllFiltersAndAlternatives)
+{
+    auto captured = test_file("captured.es");
+    auto output = run(fmt::format("--es {} +count -a +capture {} --all-filters --filter a=2 --filter a=3 --filter b=2",
+                                  build_es("factors.in"),
+                                  captured));
+    EXPECT_EQ(
+        output,
+        "Captured 1 event definitions, 2 value definitions, 0 enum definitions, 3 parameter values, and 1 events.\n");
+    std::remove(captured.c_str());
+}
+
 TEST_F(EVPTest, CanCaptureEnums)
 {
     auto captured = test_file("captured.es");
