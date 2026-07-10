@@ -19,10 +19,10 @@ CMAKE_ARGS:=
 CMAKE_CONFIGURE_ARGS=-D CMAKE_BUILD_TYPE=$(BUILD_TYPE) $(CMAKE_ARGS)
 
 # Benchmark options
-BENCHMARK_BUILD_DIRECTORY?=build-benchmark
+BENCHMARK_BUILD_DIRECTORY?=$(BUILD_DIRECTORY_PREFIX)benchmark
 BENCHMARK_OUTPUT?=$(BENCHMARK_BUILD_DIRECTORY)/benchmark.json
 BENCHMARK_ARGS?=
-BASELINE?=
+BASELINE?=$(BENCHMARK_BUILD_DIRECTORY)/baseline.json
 CANDIDATE?=$(BENCHMARK_OUTPUT)
 
 # Testing options
@@ -209,14 +209,16 @@ check-all: check
 
 .PHONY: benchmark
 benchmark:
-	mkdir -p $(BENCHMARK_BUILD_DIRECTORY)
-	cd $(BENCHMARK_BUILD_DIRECTORY) && $(CMAKE) -D CMAKE_BUILD_TYPE=$(BUILD_TYPE) -D PERF_STREAMS_BUILD_BENCHMARKS=ON $(CMAKE_ARGS) -S ..
-	$(NINJA) -C $(BENCHMARK_BUILD_DIRECTORY) $(BUILD_ARGS) perf_streams_benchmarks
-	$(BENCHMARK_BUILD_DIRECTORY)/perf_streams_benchmarks --benchmark_out=$(BENCHMARK_OUTPUT) --benchmark_out_format=json $(BENCHMARK_ARGS)
+	$(MAKE) build-benchmark TARGET=perf_streams_benchmarks CMAKE_ARGS="-D PERF_STREAMS_BUILD_BENCHMARKS=ON"
+	$(BENCHMARK_BUILD_DIRECTORY)/perf_streams_benchmarks --benchmark_out=$(BENCHMARK_OUTPUT) --benchmark_min_time=1s --benchmark_out_format=json $(BENCHMARK_ARGS)
 
 .PHONY: benchmark-compare
 benchmark-compare:
 	$(PYTHON) benchmarks/compare_benchmarks.py --baseline "$(BASELINE)" --candidate "$(CANDIDATE)"
+
+.PHONY: benchmark-snapshot
+benchmark-snapshot:
+	cp $(BENCHMARK_OUTPUT) $(BASELINE)
 
 .PHONY: package
 package:
