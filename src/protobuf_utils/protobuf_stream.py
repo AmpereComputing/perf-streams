@@ -3,7 +3,10 @@
 
 """Protobuf stream read/write utilities."""
 
+import subprocess
+from contextlib import suppress
 from io import DEFAULT_BUFFER_SIZE, IOBase
+from os import cpu_count, path
 
 try:
     import lzma
@@ -19,17 +22,35 @@ class ProtobufStreamReader:
 
     def __init__(self, filename: str | IOBase, expected_magic: int, max_version: int) -> None:
         """Initialize protobuf stream reader at file, checking magic/version."""
+        self._file_process = None
         if isinstance(filename, IOBase):
             self.file = filename
             self.close_when_done = False
         elif filename.endswith(".xz"):
-            self.file = lzma.open(filename, "rb")
+            if not path.exists(filename):
+                raise FileNotFoundError(filename)
+            try:
+                # Attempt using xz as lzma does not currently support threading
+                threads = min(4, cpu_count() or 1)
+                self._file_process = subprocess.Popen(
+                    ["xz", "-T", str(threads), "-d", "-c", filename],
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                )
+                self.file = self._file_process.stdout
+                if self.file is None:
+                    raise RuntimeError("xz decompressor did not provide stdout")
+            except FileNotFoundError:
+                self._file_process = None
+                self.file = lzma.open(filename, "rb")
             self.close_when_done = True
         else:
             self.file = open(filename, "rb")  # noqa: SIM115
             self.close_when_done = True
 
         magic, version = read_header_from(self.file)
+        if magic is None or version is None:
+            self._check_decompressor_status(block=True)
         self.version = version
         assert expected_magic == magic, (
             f"ProtobufStreamReader expected magic value to be {expected_magic}, but found {magic} instead"
@@ -43,6 +64,29 @@ class ProtobufStreamReader:
         self.read_view = memoryview(self.read_buffer)
         self.read_index = 0
         self.write_index = 0
+
+    def _check_decompressor_status(self, block: bool = False) -> None:
+        """Raise if the external decompressor has failed."""
+        if self._file_process is None:
+            return
+
+        returncode = None if block else self._file_process.poll()
+        if returncode is None:
+            if not block:
+                return
+            _, stderr_bytes = self._file_process.communicate()
+            returncode = self._file_process.returncode
+        else:
+            _, stderr_bytes = self._file_process.communicate()
+
+        stderr = stderr_bytes.decode(errors="replace").strip() if stderr_bytes else ""
+
+        self._file_process = None
+        if returncode != 0:
+            message = f"xz decompression failed with status {returncode}"
+            if stderr:
+                message += f": {stderr}"
+            raise RuntimeError(message)
 
     def _read_file(self, bytes_to_read: int) -> bytes | bytearray | memoryview:
         """
@@ -82,23 +126,36 @@ class ProtobufStreamReader:
         # Get message size in bytes, encoded as bytes
         num_bytes = self._read_file(4)
         if not is32(num_bytes):
+            self._check_decompressor_status(block=True)
             return False
         size = SIZE_STRUCT.unpack(num_bytes)[0]
         # Read the message from the file and decode it. Note that
         # ParseFromString handles clearing the protobuf 'message' object (named
         # 'item' here) so callers of this method don't need to.
-        item.ParseFromString(bytes(self._read_file(size)))
+        item_bytes = self._read_file(size)
+        if len(item_bytes) != size:
+            self._check_decompressor_status(block=True)
+        item.ParseFromString(bytes(item_bytes))
         return True
 
     def close(self) -> None:
         """Close stream."""
         if hasattr(self, "file") and self.close_when_done:
-            self.file.close()
-            del self.file
+            try:
+                self._check_decompressor_status()
+            finally:
+                self.file.close()
+                del self.file
+            if self._file_process is not None:
+                self._file_process.wait()
+                if self._file_process.stderr is not None:
+                    self._file_process.stderr.close()
+                self._file_process = None
 
     def __del__(self) -> None:
         """Close stream."""
-        self.close()
+        with suppress(Exception):
+            self.close()
 
 
 class ProtobufStreamWriter:

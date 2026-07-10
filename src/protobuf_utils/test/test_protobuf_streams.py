@@ -1,6 +1,7 @@
 # Copyright (c) 2026, Ampere Computing LLC
 # SPDX-License-Identifier: BSD-3-Clause
 
+import lzma
 import os
 import unittest
 
@@ -44,7 +45,7 @@ class TestProtobufUtils(unittest.TestCase):
 
 class TestProtobufStreams(unittest.TestCase):
     def tearDown(self):
-        for filename in ["example_test.es", "example_test.es.xz"]:
+        for filename in ["example_test.es", "example_test.es.xz", "truncated_test.es.xz"]:
             if os.path.exists(filename):
                 os.remove(filename)
 
@@ -89,6 +90,23 @@ class TestProtobufStreams(unittest.TestCase):
 
     def test_compressed(self):
         self.do_protobuf_reader_writer("example_test.es.xz")
+
+    def test_missing_compressed(self):
+        with self.assertRaises(FileNotFoundError):
+            ProtobufStreamReader("doesnotexist.es.xz", 0x12345678, 4)
+
+    def test_truncated_compressed(self):
+        filename = "truncated_test.es.xz"
+        with lzma.open(filename, "wb") as output:
+            write_header_to(0x12345678, 4, output)
+
+        with open(filename, "rb+") as output:
+            output.truncate(os.path.getsize(filename) - 1)
+
+        reader = ProtobufStreamReader(filename, 0x12345678, 4)
+        hello = example_pb2.Hello()
+        with self.assertRaises((EOFError, RuntimeError)):
+            reader.read(hello)
 
     def test_uncompressed_double_close(self):
         self.do_protobuf_reader_writer("example_test.es", double_close=True)

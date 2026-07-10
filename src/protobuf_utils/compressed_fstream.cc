@@ -3,6 +3,7 @@
 
 #include "compressed_fstream.h"
 
+#include <algorithm>
 #include <boost/iostreams/device/file.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -14,8 +15,25 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <thread>
 
 namespace perf_streams::protobuf_utils {
+
+namespace {
+
+unsigned compression_threads(unsigned max)
+{
+    return std::min(max, std::max(1U, std::thread::hardware_concurrency()));
+}
+
+auto lzma_params(unsigned max_threads = 4)
+{
+    boost::iostreams::lzma_params params{};
+    params.threads = compression_threads(max_threads);
+    return params;
+}
+
+} // namespace
 
 CompressionType compression_from_filename(const char* filename)
 {
@@ -57,7 +75,7 @@ std::unique_ptr<std::ostream> open_compressed_ostream(const char* filename, std:
     else if (compression == CompressionType::BZ2)
         out->push(boost::iostreams::bzip2_compressor());
     else if (compression == CompressionType::XZ)
-        out->push(boost::iostreams::lzma_compressor());
+        out->push(boost::iostreams::lzma_compressor(lzma_params()));
     out->push(boost::iostreams::file_sink(filename, mode | std::ios_base::binary));
 
     return out;
@@ -78,7 +96,7 @@ std::unique_ptr<std::istream> open_compressed_istream(const char* filename, std:
     else if (compression == CompressionType::BZ2)
         in->push(boost::iostreams::bzip2_decompressor());
     else if (compression == CompressionType::XZ)
-        in->push(boost::iostreams::lzma_decompressor());
+        in->push(boost::iostreams::lzma_decompressor(lzma_params()));
 
     in->push(boost::iostreams::file_source(filename, mode | std::ios_base::binary));
 
