@@ -30,6 +30,7 @@ class ProtobufStreamReader:
             if not path.exists(filename):
                 raise FileNotFoundError(filename)
             try:
+                # Attempt using xz as lzma does not currently support threading
                 threads = min(4, cpu_count() or 1)
                 self._file_process = subprocess.Popen(
                     ["xz", "-T", str(threads), "-d", "-c", filename],
