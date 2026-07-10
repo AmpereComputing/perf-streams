@@ -223,9 +223,9 @@ void Capture::add_filter(const std::string& filter_spec)
     std::string value_str = filter_spec.substr(eq + 1);
 
     if (value_str.size() > 2 && value_str[0] == '0' && value_str[1] == 'x')
-        filter_data_by_name[data_name].push_back(static_cast<uint64_t>(std::stoull(value_str, nullptr, 0)));
+        filter_data_by_name[data_name].emplace_back(static_cast<uint64_t>(std::stoull(value_str, nullptr, 0)));
     else
-        filter_data_by_name[data_name].push_back(static_cast<int64_t>(std::stoll(value_str, nullptr, 0)));
+        filter_data_by_name[data_name].emplace_back(static_cast<int64_t>(std::stoll(value_str, nullptr, 0)));
 }
 
 bool Capture::filter_match(const Event& event) const
@@ -235,11 +235,10 @@ bool Capture::filter_match(const Event& event) const
 
     std::unordered_set<int> matched_filter_ids;
 
-    for (int i = 0; i < event.values_size(); i++) {
-        const event_stream_proto::Value& value = event.values(i);
-        auto it = filter_data.find(value.definition_id());
-
-        if (it != filter_data.end() && value_matches_filters(value, it->second)) {
+    for (const auto& value : event.values()) {
+        if (auto it = filter_data.find(value.definition_id());
+            it != filter_data.end() && value_matches_filters(value, it->second))
+        {
             if (!require_all_filters)
                 return true;
 
