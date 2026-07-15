@@ -645,9 +645,9 @@ Or for multiple python plugins:
 The `python` plugin allows processing of events with an embedded Python
 interpreter.
 
-You supply a Python file and optionally arguments to the plugin. Inside a Python
-file, importing the `evp` package will allow interaction with the event
-processor. `evp` contains the following functions:
+You supply a Python file (or stdin with `-`) and optionally arguments to the
+plugin. Inside a Python file, importing the `evp` package will allow
+interaction with the event processor. `evp` contains the following functions:
 
 <table>
 <tr>

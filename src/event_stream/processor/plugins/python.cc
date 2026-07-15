@@ -40,6 +40,8 @@ public:
     Python(ProcessorIfc & proc_ifc, Args & args);
     ~Python() override;
 
+    static void help(int argc, const char** argv);
+
     void define_value(const Definition& definition) override;
 
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
@@ -692,7 +694,7 @@ Python::Python(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}, python_pl
     }
     args.done();
 
-    FILE* fp = fopen(pyfile.c_str(), "rb");
+    FILE* fp = pyfile == "-" ? stdin : fopen(pyfile.c_str(), "rb");
     if (!fp) {
         fp = fopen(fmt::format("{}/{}", get_config_path(), pyfile).c_str(), "rb");
 
@@ -742,6 +744,15 @@ Python::~Python()
         delete python_plugin_helper;
         python_plugin_helper = nullptr;
     }
+}
+
+void Python::help(int argc, const char** argv)
+{
+    print_help(argv[0], "python", "<python file> [arguments...]", R"(Arguments:
+
+    python file                 File to use as python script (- for stdin)
+    arguments                   Arguments to python script
+)");
 }
 
 void Python::define_value(const Definition& definition)
