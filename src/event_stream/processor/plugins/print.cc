@@ -25,6 +25,10 @@ public:
     }
     static void help(int argc, const char** argv);
     void process_event(const Event& event) override;
+    std::set<Phase> phases() const override
+    {
+        return {Phase::EVENTS};
+    }
 
     template<typename T>
     void print_expanded_value(const event_stream_proto::Definition* definition, T value)

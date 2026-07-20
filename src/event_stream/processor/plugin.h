@@ -29,9 +29,11 @@ class Plugin
 {
 public:
     enum class Phase {
-        DEFINITIONS,
-        PARAMETERS,
-        EVENTS
+        DEFINITIONS, // plugin requires definitions (define_event, define_value, define_enumeration)
+        PARAMETERS,  // plugin requires parameters (report_parameter)
+        COUNTERS,    // plugin requires counter values
+        EVENTS,      // plugin requires events (process_event)
+        SIZE
     };
 
     Plugin(ProcessorIfc& proc_ifc) : proc_ifc{proc_ifc} {}

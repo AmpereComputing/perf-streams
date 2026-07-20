@@ -41,7 +41,7 @@ public:
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
     std::set<Phase> phases() const override
     {
-        return {Phase::EVENTS};
+        return {Phase::DEFINITIONS, Phase::COUNTERS};
     }
 
 private:
