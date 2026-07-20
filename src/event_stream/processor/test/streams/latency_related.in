@@ -36,3 +36,12 @@
 370 related_repeat_b txid=31u
 380 end_transaction txid=31u
 390 end_transaction txid=30u
+400 start_transaction txid=40u
+410 related_sibling_chain_a txid=40u
+420 start_transaction txid=41u parent=40u
+430 related_sibling_chain_b txid=41u
+440 start_transaction txid=42u parent=40u
+450 related_sibling_chain_c txid=42u
+460 end_transaction txid=41u
+470 end_transaction txid=42u
+480 end_transaction txid=40u

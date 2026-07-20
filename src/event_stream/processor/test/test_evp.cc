@@ -878,6 +878,31 @@ rc.sum_latency                     20
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedChainExcludesSiblingLeg)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n rsc related_sibling_chain_a "
+                        "related_sibling_chain_b related_sibling_chain_c +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(rsc.count                                   1
+rsc.max_avg_latency                         20
+rsc.max_latency                             20
+rsc.min_latency                             20
+rsc.related_sibling_chain_a.count           1
+rsc.related_sibling_chain_a.max_avg_latency 20
+rsc.related_sibling_chain_a.max_latency     20
+rsc.related_sibling_chain_a.min_latency     20
+rsc.related_sibling_chain_a.stdev           0
+rsc.related_sibling_chain_a.sum_latency     20
+rsc.related_sibling_chain_b.count           0
+rsc.related_sibling_chain_b.stdev           0
+rsc.related_sibling_chain_b.sum_latency     0
+rsc.stdev                                   0
+rsc.sum_latency                             20
+)";
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, LatencyIncludeRelatedRetiresEndedTransactions)
 {
     auto output = run(fmt::format("--es {} +latency --include-related -n stale stale_a stale_b +summarize",

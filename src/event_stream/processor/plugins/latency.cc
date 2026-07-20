@@ -87,10 +87,11 @@ private:
             time_count.count += 1;
         }
 
-        void set_last_event(uint64_t now, int idx)
+        void set_last_event(uint64_t now, int idx, std::optional<uint64_t> txid = std::nullopt)
         {
             last_event_time = now;
             last_event_idx = idx;
+            last_event_txid = txid;
 
             if (idx == 0)
                 saw_start_event = true;
@@ -100,6 +101,7 @@ private:
 
         uint64_t last_event_time;
         int last_event_idx;
+        std::optional<uint64_t> last_event_txid;
 
         bool saw_start_event{false};
     };
@@ -127,8 +129,16 @@ private:
     void update_latency(Counter * counter, const event_stream_proto::Event& event, int idx);
     void update_related_latency(const event_stream_proto::Event& event, int idx);
     void end_transaction(Counter * counter, const event_stream_proto::Event& event);
-    void record_latency_for_key(uint64_t key, const event_stream_proto::Event& event, int idx, bool require_sequence);
-    void record_latency(LatencyTracker & tracker, uint64_t now, int idx, bool require_sequence = false);
+    void record_latency_for_key(uint64_t key,
+                                const event_stream_proto::Event& event,
+                                int idx,
+                                bool require_sequence,
+                                std::optional<uint64_t> txid = std::nullopt);
+    void record_latency(LatencyTracker & tracker,
+                        uint64_t now,
+                        int idx,
+                        bool require_sequence = false,
+                        std::optional<uint64_t> txid = std::nullopt);
     void finalize_latency(const TrackerIter& tracker);
     void aggregate_latency(LatencyTracker & tracker);
     std::optional<uint64_t> get_key(const event_stream_proto::Event& event) const;
@@ -291,41 +301,41 @@ void Latency::update_related_latency(const event_stream_proto::Event& event, int
         return;
 
     if (idx == 0) {
-        record_latency_for_key(*txid, event, idx, true);
+        record_latency_for_key(*txid, event, idx, true, *txid);
         return;
     }
 
-    for (auto& [tracker_txid, tracker] : trackers) {
-        if (is_related(tracker_txid, *txid))
-            record_latency(tracker, event.time(), idx, true);
+    for (auto& tracker_entry : trackers) {
+        auto& tracker = tracker_entry.second;
+        if (tracker.last_event_txid && is_related(*tracker.last_event_txid, *txid))
+            record_latency(tracker, event.time(), idx, true, *txid);
     }
 }
 
-void Latency::record_latency_for_key(uint64_t key,
-                                     const event_stream_proto::Event& event,
-                                     int idx,
-                                     bool require_sequence)
+void Latency::record_latency_for_key(
+    uint64_t key, const event_stream_proto::Event& event, int idx, bool require_sequence, std::optional<uint64_t> txid)
 {
     auto tracker_iter = trackers.find(key);
     if (tracker_iter == trackers.end())
         std::tie(tracker_iter, std::ignore) = trackers.insert({key, LatencyTracker(event.time(), events.size())});
 
-    record_latency(tracker_iter->second, event.time(), idx, require_sequence);
+    record_latency(tracker_iter->second, event.time(), idx, require_sequence, txid);
 
     if (!tracking_transactions && static_cast<size_t>(idx + 1) == events.size())
         finalize_latency(tracker_iter);
 }
 
-void Latency::record_latency(LatencyTracker& tracker, uint64_t now, int idx, bool require_sequence)
+void Latency::record_latency(
+    LatencyTracker& tracker, uint64_t now, int idx, bool require_sequence, std::optional<uint64_t> txid)
 {
     if (!require_sequence) {
         tracker.record_elapsed_time(now);
-        tracker.set_last_event(now, idx);
+        tracker.set_last_event(now, idx, txid);
         return;
     }
 
     if (idx == 0) {
-        tracker.set_last_event(now, idx);
+        tracker.set_last_event(now, idx, txid);
         return;
     }
 
@@ -333,7 +343,7 @@ void Latency::record_latency(LatencyTracker& tracker, uint64_t now, int idx, boo
         return;
 
     if (idx <= tracker.last_event_idx) {
-        tracker.set_last_event(now, idx);
+        tracker.set_last_event(now, idx, txid);
         return;
     }
 
@@ -341,7 +351,7 @@ void Latency::record_latency(LatencyTracker& tracker, uint64_t now, int idx, boo
         return;
 
     tracker.record_elapsed_time(now);
-    tracker.set_last_event(now, idx);
+    tracker.set_last_event(now, idx, txid);
 }
 
 void Latency::finalize_latency(const TrackerIter& tracker_iter)
