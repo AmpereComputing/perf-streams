@@ -42,7 +42,7 @@ public:
     std::set<Phase> phases() const override
     {
         if (include_related)
-            return {Phase::DEFINITIONS, Phase::COUNTERS, Phase::EVENTS, Phase::TRANSACTIONS};
+            return {Phase::DEFINITIONS, Phase::COUNTERS, Phase::TRANSACTIONS};
 
         return {Phase::DEFINITIONS, Phase::COUNTERS};
     }

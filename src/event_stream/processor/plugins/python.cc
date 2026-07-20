@@ -97,7 +97,7 @@ static PyObject* enumeration_aliases = nullptr;
 std::set<Plugin::Phase> Python::phases() const
 {
     if (python_plugin_helper && python_plugin_helper->py_transactions_required())
-        return {Phase::DEFINITIONS, Phase::COUNTERS, Phase::EVENTS, Phase::TRANSACTIONS};
+        return {Phase::DEFINITIONS, Phase::COUNTERS, Phase::TRANSACTIONS};
 
     return {Phase::DEFINITIONS, Phase::COUNTERS};
 }
