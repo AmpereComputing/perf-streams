@@ -176,7 +176,6 @@ private:
     };
 
     std::multimap<uint64_t, TimeActionWrapper> time_based_actions;
-    std::optional<uint64_t> next_time_action;
 
     std::map<std::string, std::string> variables;
     fmt::dynamic_format_arg_store<fmt::format_context> variables_for_fmt;
@@ -192,7 +191,6 @@ private:
     void start_simulation();
     void end_simulation();
     void schedule_time_based_action(uint64_t expiry, TimeActionWrapper action);
-    void refresh_next_time_action();
     void run_time_based_actions();
     void ensure_event_record();
     void handle_event(const Event& event);

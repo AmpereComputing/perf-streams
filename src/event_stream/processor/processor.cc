@@ -246,7 +246,7 @@ void Processor::process()
             ensure_event_record();
             current_time = record.event().time();
 
-            if (next_time_action && current_time >= *next_time_action) {
+            if (!time_based_actions.empty() && current_time >= time_based_actions.begin()->first) {
                 run_time_based_actions();
                 if (stopped_at_previous_time)
                     break;
@@ -497,17 +497,6 @@ void Processor::save_enumeration(const Enumeration& enumeration)
 void Processor::schedule_time_based_action(uint64_t expiry, TimeActionWrapper action)
 {
     time_based_actions.emplace(expiry, std::move(action));
-
-    if (!next_time_action || expiry < *next_time_action)
-        next_time_action = expiry;
-}
-
-void Processor::refresh_next_time_action()
-{
-    if (time_based_actions.empty())
-        next_time_action.reset();
-    else
-        next_time_action = time_based_actions.begin()->first;
 }
 
 /** Execute all the time based actions that should occur before
@@ -535,8 +524,6 @@ void Processor::run_time_based_actions()
             schedule_time_based_action(next_expiry, action_wrapper);
         }
     }
-
-    refresh_next_time_action();
 }
 
 /** Handle an event:
