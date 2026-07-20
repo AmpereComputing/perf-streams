@@ -190,6 +190,7 @@ private:
     void report_parameters();
     void start_simulation();
     void end_simulation();
+    void schedule_time_based_action(uint64_t expiry, TimeActionWrapper action);
     void run_time_based_actions();
     void ensure_event_record();
     void handle_event(const Event& event);

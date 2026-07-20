@@ -246,10 +246,7 @@ void Processor::process()
             ensure_event_record();
             current_time = record.event().time();
 
-            // NOTE: might want to speed this up by tracking the next
-            // interesting time.
-            //
-            if (!time_based_actions.empty()) {
+            if (!time_based_actions.empty() && current_time >= time_based_actions.begin()->first) {
                 run_time_based_actions();
                 if (stopped_at_previous_time)
                     break;
@@ -497,6 +494,11 @@ void Processor::save_enumeration(const Enumeration& enumeration)
     enumerations[enumeration.id()] = enumeration;
 }
 
+void Processor::schedule_time_based_action(uint64_t expiry, TimeActionWrapper action)
+{
+    time_based_actions.emplace(expiry, std::move(action));
+}
+
 /** Execute all the time based actions that should occur before
  *  the current_time.
  *
@@ -519,7 +521,7 @@ void Processor::run_time_based_actions()
 
         if (delta) {
             auto next_expiry = ((current_time + delta) / delta) * delta;
-            time_based_actions.emplace(next_expiry, action_wrapper);
+            schedule_time_based_action(next_expiry, action_wrapper);
         }
     }
 }
@@ -669,8 +671,7 @@ void Processor::on_every(Plugin* plugin, const std::string& trigger, Action acti
  */
 void Processor::at(Plugin* plugin, const std::string& trigger, TimeAction action)
 {
-    time_based_actions.emplace(
-        std::piecewise_construct, std::forward_as_tuple(parse_time_spec(trigger)), std::forward_as_tuple(action, 0));
+    schedule_time_based_action(parse_time_spec(trigger), TimeActionWrapper{action, 0});
 }
 
 /** Called by a plugin to trigger an action at a particular time
@@ -680,8 +681,7 @@ void Processor::at_every(Plugin* plugin, const std::string& trigger, TimeAction 
 {
     auto delta = parse_time_spec(trigger);
     auto next_expiry = ((current_time + delta) / delta) * delta;
-    time_based_actions.emplace(
-        std::piecewise_construct, std::forward_as_tuple(next_expiry), std::forward_as_tuple(action, delta));
+    schedule_time_based_action(next_expiry, TimeActionWrapper{action, delta});
 }
 
 /** Called by a plugin to accumlate data values from an event.
