@@ -4,6 +4,7 @@
 
 #include "event_stream/event_stream_proto.h"
 
+#include <algorithm>
 #include <boost/program_options.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -17,6 +18,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -30,6 +32,12 @@ using perf_streams::event_stream::EventHandle;
 using perf_streams::event_stream::EventStreamProto;
 using perf_streams::event_stream::EventType;
 
+struct StageTime
+{
+    std::string stage;
+    std::uint64_t time{0};
+};
+
 struct InstructionRecord
 {
     std::uint64_t start_time{0};
@@ -37,21 +45,24 @@ struct InstructionRecord
     std::uint64_t micro_pc{0};
     std::uint64_t seq_num{0};
     std::string disasm;
-    std::unordered_map<std::string, std::uint64_t> stage_times;
-    std::vector<std::string> stage_order;
+    std::vector<StageTime> stage_times;
 
-    void record_stage(const std::string& stage, std::uint64_t time)
+    void record_stage(std::string stage, std::uint64_t time)
     {
-        if (!stage_times.contains(stage))
-            stage_order.push_back(stage);
-        stage_times[stage] = time;
+        for (auto& stage_time : stage_times) {
+            if (stage_time.stage == stage) {
+                stage_time.time = time;
+                return;
+            }
+        }
+
+        stage_times.push_back({.stage = std::move(stage), .time = time});
     }
 
-    std::optional<std::uint64_t> stage_time(const std::string& stage) const
+    bool has_stage(std::string_view stage) const
     {
-        if (auto it = stage_times.find(stage); it != stage_times.end())
-            return it->second;
-        return std::nullopt;
+        return std::ranges::any_of(stage_times,
+                                   [stage](const StageTime& stage_time) { return stage_time.stage == stage; });
     }
 };
 
@@ -65,6 +76,20 @@ struct Definitions
     DataType micro_pc;
     DataType disasm;
     std::unordered_map<std::string, EventType> stage_events;
+};
+
+enum class PendingEventKind {
+    start_transaction,
+    stage,
+    end_transaction,
+};
+
+struct PendingEvent
+{
+    std::uint64_t time{0};
+    std::size_t instruction_index{0};
+    std::size_t stage_index{0};
+    PendingEventKind kind{PendingEventKind::stage};
 };
 
 [[noreturn]] void parse_error(std::size_t line_number, std::string_view message)
@@ -130,7 +155,7 @@ InstructionRecord parse_start_line(std::string_view line, std::size_t line_numbe
     record.micro_pc = parse_u64(fields[4], line_number, "micro_pc");
     record.seq_num = parse_u64(fields[5], line_number, "seq_num");
     record.disasm = std::string(line.substr(start));
-    record.record_stage(start_stage, record.start_time);
+    record.record_stage(std::string(start_stage), record.start_time);
     return record;
 }
 
@@ -202,6 +227,76 @@ void emit_stage(EventStreamProto& stream,
     stream.close_event(event);
 }
 
+int pending_event_kind_order(PendingEventKind kind)
+{
+    switch (kind) {
+    case PendingEventKind::start_transaction:
+        return 0;
+    case PendingEventKind::stage:
+        return 1;
+    case PendingEventKind::end_transaction:
+        return 2;
+    }
+
+    throw std::logic_error("unknown pending event kind");
+}
+
+std::vector<PendingEvent> collect_pending_events(const std::vector<InstructionRecord>& instructions,
+                                                 const std::string& tx_start_stage,
+                                                 const std::string& tx_end_stage)
+{
+    std::size_t event_count = 0;
+    for (const auto& instruction : instructions) {
+        for (const auto& stage_time : instruction.stage_times) {
+            if (stage_time.time == 0)
+                continue;
+
+            ++event_count;
+            if (stage_time.stage == tx_start_stage)
+                ++event_count;
+            if (stage_time.stage == tx_end_stage)
+                ++event_count;
+        }
+    }
+
+    std::vector<PendingEvent> events;
+    events.reserve(event_count);
+    for (std::size_t instruction_index = 0; instruction_index < instructions.size(); ++instruction_index) {
+        const auto& instruction = instructions[instruction_index];
+        for (std::size_t stage_index = 0; stage_index < instruction.stage_times.size(); ++stage_index) {
+            const auto& stage_time = instruction.stage_times[stage_index];
+            if (stage_time.time == 0)
+                continue;
+
+            if (stage_time.stage == tx_start_stage) {
+                events.push_back({.time = stage_time.time,
+                                  .instruction_index = instruction_index,
+                                  .stage_index = stage_index,
+                                  .kind = PendingEventKind::start_transaction});
+            }
+
+            events.push_back({.time = stage_time.time,
+                              .instruction_index = instruction_index,
+                              .stage_index = stage_index,
+                              .kind = PendingEventKind::stage});
+
+            if (stage_time.stage == tx_end_stage) {
+                events.push_back({.time = stage_time.time,
+                                  .instruction_index = instruction_index,
+                                  .stage_index = stage_index,
+                                  .kind = PendingEventKind::end_transaction});
+            }
+        }
+    }
+
+    std::ranges::sort(events, [](const PendingEvent& left, const PendingEvent& right) {
+        return std::tuple(left.time, left.instruction_index, left.stage_index, pending_event_kind_order(left.kind))
+               < std::tuple(
+                   right.time, right.instruction_index, right.stage_index, pending_event_kind_order(right.kind));
+    });
+    return events;
+}
+
 void convert(std::istream& input,
              EventStreamProto& output,
              const std::string& input_path,
@@ -249,7 +344,7 @@ void convert(std::istream& input,
             parse_error(line_number, fmt::format("encountered stage before first {}", tx_start_stage));
 
         parse_stage_line(line, line_number, *current_instruction, definitions, output);
-        if (current_instruction->stage_times.contains("retire")) {
+        if (current_instruction->has_stage("retire")) {
             instructions.push_back(std::move(*current_instruction));
             current_instruction.reset();
         }
@@ -268,19 +363,19 @@ void convert(std::istream& input,
         output.set_string_parameter("input_path", "Path to the source O3PipeView trace", input_path);
     output.start_simulation();
 
-    for (const auto& instruction : instructions) {
-        for (const auto& stage : instruction.stage_order) {
-            auto time = instruction.stage_time(stage);
-            if (!time || *time == 0)
-                continue;
-
-            if (stage == tx_start_stage)
-                emit_marker(output, definitions.start_transaction, *time, definitions, instruction);
-
-            emit_stage(output, definitions, instruction, stage, *time);
-
-            if (stage == tx_end_stage)
-                emit_marker(output, definitions.end_transaction, *time, definitions, instruction);
+    for (const auto& pending_event : collect_pending_events(instructions, tx_start_stage, tx_end_stage)) {
+        const auto& instruction = instructions[pending_event.instruction_index];
+        const auto& stage_time = instruction.stage_times[pending_event.stage_index];
+        switch (pending_event.kind) {
+        case PendingEventKind::start_transaction:
+            emit_marker(output, definitions.start_transaction, pending_event.time, definitions, instruction);
+            break;
+        case PendingEventKind::stage:
+            emit_stage(output, definitions, instruction, stage_time.stage, pending_event.time);
+            break;
+        case PendingEventKind::end_transaction:
+            emit_marker(output, definitions.end_transaction, pending_event.time, definitions, instruction);
+            break;
         }
     }
 }
@@ -320,16 +415,19 @@ int main(int argc, char** argv)
             return EXIT_SUCCESS;
         }
 
-        EventStreamProto output(output_path, force);
+        std::optional<std::ifstream> input_file;
+        if (input_path != "-") {
+            input_file.emplace(input_path);
+            if (!*input_file)
+                throw std::runtime_error(fmt::format("failed to open input file '{}'", input_path));
+        }
 
+        EventStreamProto output(output_path, force);
         if (input_path == "-") {
             std::cin >> std::noskipws;
             convert(std::cin, output, input_path, tx_start_stage, tx_end_stage);
         } else {
-            std::ifstream input(input_path);
-            if (!input)
-                throw std::runtime_error(fmt::format("failed to open input file '{}'", input_path));
-            convert(input, output, input_path, tx_start_stage, tx_end_stage);
+            convert(*input_file, output, input_path, tx_start_stage, tx_end_stage);
         }
 
         return EXIT_SUCCESS;

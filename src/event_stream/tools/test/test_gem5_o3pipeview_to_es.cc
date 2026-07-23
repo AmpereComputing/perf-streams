@@ -4,15 +4,45 @@
 
 #include "testing/run_tool.h"
 
-#include <filesystem>
-#include <string>
+#include <algorithm>
+#include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Not;
+
+std::vector<std::uint64_t> event_times(const std::string& viewer_output)
+{
+    std::vector<std::uint64_t> times;
+    std::istringstream lines(viewer_output);
+    std::string line;
+    while (std::getline(lines, line)) {
+        static constexpr std::string_view prefix = "event time=";
+        if (!line.starts_with(prefix))
+            continue;
+
+        auto time_end = line.find(' ', prefix.size());
+        times.push_back(std::stoull(line.substr(prefix.size(), time_end - prefix.size())));
+    }
+    return times;
+}
+
+std::string read_file(const std::string& path)
+{
+    std::ifstream input(path);
+    return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+}
 
 struct Gem5O3PipeViewToESTest : perf_streams::testing::CommandTest
 {
@@ -51,14 +81,19 @@ TEST_F(Gem5O3PipeViewToESTest, ConvertsToRawEventStreamFile)
                 HasSubstr("parameter name=input_path description=Path to the source O3PipeView trace value="
                           + fixture("gem5_basic.trace") + "\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=100 name=start_transaction txid=1\n"));
-    EXPECT_THAT(viewer_output,
-                HasSubstr("event time=100 name=fetch txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
-    EXPECT_THAT(viewer_output,
-                HasSubstr("event time=170 name=store txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
+    EXPECT_THAT(
+        viewer_output,
+        HasSubstr(
+            "event time=100 name=fetch txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
+    EXPECT_THAT(
+        viewer_output,
+        HasSubstr(
+            "event time=170 name=store txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=170 name=end_transaction txid=1\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=200 name=start_transaction txid=2\n"));
-    EXPECT_THAT(viewer_output,
-                HasSubstr("event time=260 name=retire txid=2 seq_num=2 program_counter=4100 micro_pc=1 disasm=ldr x2, [x3]\n"));
+    EXPECT_THAT(
+        viewer_output,
+        HasSubstr("event time=260 name=retire txid=2 seq_num=2 program_counter=4100 micro_pc=1 disasm=ldr x2, [x3]\n"));
     EXPECT_THAT(viewer_output, Not(HasSubstr("event time=260 name=end_transaction txid=2\n")));
 }
 
@@ -107,8 +142,10 @@ TEST_F(Gem5O3PipeViewToESTest, SupportsCustomTransactionStages)
         viewer_output,
         HasSubstr("parameter name=tx_start_stage description=Stage used to emit start_transaction value=rename\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=120 name=start_transaction txid=1\n"));
-    EXPECT_THAT(viewer_output,
-                HasSubstr("event time=120 name=rename txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
+    EXPECT_THAT(
+        viewer_output,
+        HasSubstr(
+            "event time=120 name=rename txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=160 name=end_transaction txid=1\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=220 name=start_transaction txid=2\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=260 name=end_transaction txid=2\n"));
@@ -128,9 +165,43 @@ TEST_F(Gem5O3PipeViewToESTest, HandlesFutureStagesWithoutCodeChanges)
     EXPECT_EQ(viewer_status, EXIT_SUCCESS);
     EXPECT_THAT(viewer_output, HasSubstr("definition name=future description=gem5 O3PipeView stage 'future' id="));
     EXPECT_THAT(viewer_output, HasSubstr("event time=300 name=start_transaction txid=3\n"));
-    EXPECT_THAT(viewer_output,
-                HasSubstr("event time=335 name=future txid=3 seq_num=3 program_counter=8192 micro_pc=0 disasm=sub x4, x5, x6\n"));
+    EXPECT_THAT(
+        viewer_output,
+        HasSubstr(
+            "event time=335 name=future txid=3 seq_num=3 program_counter=8192 micro_pc=0 disasm=sub x4, x5, x6\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=335 name=end_transaction txid=3\n"));
+}
+
+TEST_F(Gem5O3PipeViewToESTest, EmitsEventsInTimestampOrder)
+{
+    auto output = output_file("gem5_out_of_order.es");
+    clear_output(output);
+
+    auto [converter_output, status] = run_command("--output", output, fixture("gem5_out_of_order.trace"));
+    EXPECT_EQ(status, EXIT_SUCCESS);
+    EXPECT_EQ(converter_output, "");
+
+    auto [viewer_output, viewer_status] = view_output(output);
+    EXPECT_EQ(viewer_status, EXIT_SUCCESS);
+    auto times = event_times(viewer_output);
+    EXPECT_TRUE(std::ranges::is_sorted(times));
+    EXPECT_THAT(times, ElementsAre(100, 100, 110, 150, 150, 160, 200, 300));
+}
+
+TEST_F(Gem5O3PipeViewToESTest, ValidatesInputBeforeOverwritingOutput)
+{
+    auto output = output_file("gem5_existing_output.es");
+    clear_output(output);
+
+    {
+        std::ofstream existing(output);
+        existing << "existing stream contents\n";
+    }
+
+    auto [converter_output, status] = run_command("--force", "--output", output, fixture("gem5_missing_input.trace"));
+    EXPECT_NE(status, EXIT_SUCCESS);
+    EXPECT_THAT(converter_output, HasSubstr("failed to open input file"));
+    EXPECT_EQ(read_file(output), "existing stream contents\n");
 }
 
 TEST_F(Gem5O3PipeViewToESTest, RejectsMismatchedTransactionStartStage)
