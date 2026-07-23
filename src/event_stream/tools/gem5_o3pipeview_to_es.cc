@@ -5,11 +5,10 @@
 #include "event_stream/event_stream_proto.h"
 
 #include <boost/program_options.hpp>
-#include <fmt/base.h>
-#include <fmt/format.h>
-
 #include <cstddef>
 #include <cstdint>
+#include <fmt/base.h>
+#include <fmt/format.h>
 #include <fstream>
 #include <ios>
 #include <iostream>
@@ -156,8 +155,7 @@ void parse_stage_line(std::string_view line,
         instruction.record_stage(stage_name, parse_u64(fields[i + 1], line_number, stage_name + " time"));
         if (!definitions.stage_events.contains(stage_name)) {
             definitions.stage_events.emplace(
-                stage_name,
-                stream.define_event(stage_name, fmt::format("gem5 O3PipeView stage '{}'", stage_name)));
+                stage_name, stream.define_event(stage_name, fmt::format("gem5 O3PipeView stage '{}'", stage_name)));
         }
     }
 }
@@ -259,9 +257,8 @@ void convert(std::istream& input,
                 parse_error(line_number, "encountered fetch before retire for the current instruction");
             current_instruction = parse_fetch_line(line, line_number);
             if (!definitions.stage_events.contains("fetch")) {
-                definitions.stage_events.emplace(
-                    "fetch",
-                    output.define_event("fetch", "gem5 O3PipeView stage 'fetch'"));
+                definitions.stage_events.emplace("fetch",
+                                                 output.define_event("fetch", "gem5 O3PipeView stage 'fetch'"));
             }
             continue;
         }
