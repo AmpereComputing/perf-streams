@@ -8,7 +8,6 @@
 #include "event_stream/event.h"
 #include "event_stream/event_stream.h"
 #include "event_stream/event_stream.pb.h" // IWYU pragma: export
-#include "protobuf_utils/compressed_fstream.h"
 #include "protobuf_utils/protobuf_stream.h"
 
 #include <atomic>
@@ -18,7 +17,6 @@
 #include <fmt/ostream.h>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 
 namespace perf_streams::event_stream {
@@ -40,9 +38,6 @@ public:
     explicit EventStreamProto(int fd = 1);
     explicit EventStreamProto(int fd_writer, int fd_reader);
     explicit EventStreamProto(const std::string& filename, bool force = true);
-    EventStreamProto(const std::string& filename,
-                     bool force,
-                     std::optional<protobuf_utils::CompressionType> compression);
 
     void post_event(EventType event_type, std::uint64_t time) override;
     EventHandle open_event(EventType event_type, std::uint64_t time) override;

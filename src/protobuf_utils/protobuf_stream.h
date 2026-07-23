@@ -6,7 +6,6 @@
 #pragma once
 
 #include "protobuf_utils.h"
-#include "protobuf_utils/compressed_fstream.h"
 
 #include <cerrno>
 #include <cstdint>
@@ -15,7 +14,6 @@
 #include <istream>
 #include <memory>
 #include <ostream>
-#include <optional>
 #include <string>
 #include <system_error>
 
@@ -25,11 +23,7 @@ class ProtobufStreamWriter
 {
 public:
     ProtobufStreamWriter(int fd, uint32_t magic_number, uint32_t version);
-    ProtobufStreamWriter(std::filesystem::path filepath,
-                         uint32_t magic_number,
-                         uint32_t version,
-                         bool force = false,
-                         std::optional<CompressionType> compression = std::nullopt);
+    ProtobufStreamWriter(std::filesystem::path filepath, uint32_t magic_number, uint32_t version, bool force = false);
     ~ProtobufStreamWriter();
     template<typename Item>
     bool write(const Item& item);
@@ -39,7 +33,7 @@ protected:
     std::filesystem::path filepath;
     std::unique_ptr<std::ostream> owned_output_stream;
     std::unique_ptr<google::protobuf::io::CopyingOutputStream> copying_output_stream;
-    std::unique_ptr<google::protobuf::io::ZeroCopyOutputStream> output_stream;
+    std::unique_ptr<google::protobuf::io::CopyingOutputStreamAdaptor> output_stream;
 };
 
 template<typename Item>

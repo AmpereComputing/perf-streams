@@ -67,7 +67,7 @@ TEST_F(Gem5O3PipeViewToESTest, ConvertsToCompressedEventStreamFile)
     auto output = output_file("gem5_o3pipeview.es.xz");
     clear_output(output);
 
-    auto [converter_output, status] = run_command("--output", output, "--compress", "xz", fixture("gem5_basic.trace"));
+    auto [converter_output, status] = run_command("--output", output, fixture("gem5_basic.trace"));
     EXPECT_EQ(status, EXIT_SUCCESS);
     EXPECT_EQ(converter_output, "");
 
@@ -76,30 +76,19 @@ TEST_F(Gem5O3PipeViewToESTest, ConvertsToCompressedEventStreamFile)
     EXPECT_THAT(viewer_output, HasSubstr("event time=170 name=end_transaction txid=1\n"));
 }
 
-TEST_F(Gem5O3PipeViewToESTest, SupportsStdoutRawAndXzOutput)
+TEST_F(Gem5O3PipeViewToESTest, SupportsStdoutRawOutput)
 {
     auto raw_output = output_file("gem5_stdout.es");
-    auto xz_output = output_file("gem5_stdout.es.xz");
     clear_output(raw_output);
-    clear_output(xz_output);
 
     auto [raw_converter_output, raw_status] =
         run_command("--output", "-", fixture("gem5_basic.trace"), ">", raw_output);
     EXPECT_EQ(raw_status, EXIT_SUCCESS);
     EXPECT_EQ(raw_converter_output, "");
 
-    auto [xz_converter_output, xz_status] =
-        run_command("--output", "-", "--compress", "xz", fixture("gem5_basic.trace"), ">", xz_output);
-    EXPECT_EQ(xz_status, EXIT_SUCCESS);
-    EXPECT_EQ(xz_converter_output, "");
-
     auto [raw_viewer_output, raw_viewer_status] = view_output(raw_output);
     EXPECT_EQ(raw_viewer_status, EXIT_SUCCESS);
     EXPECT_THAT(raw_viewer_output, HasSubstr("event time=100 name=start_transaction txid=1\n"));
-
-    auto [xz_viewer_output, xz_viewer_status] = view_output(xz_output);
-    EXPECT_EQ(xz_viewer_status, EXIT_SUCCESS);
-    EXPECT_THAT(xz_viewer_output, HasSubstr("event time=170 name=end_transaction txid=1\n"));
 }
 
 TEST_F(Gem5O3PipeViewToESTest, SupportsCustomTransactionStages)

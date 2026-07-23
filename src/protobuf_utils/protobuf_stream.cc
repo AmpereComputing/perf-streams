@@ -36,22 +36,11 @@ private:
     std::ostream* output;
 };
 
-bool flush_output_stream(google::protobuf::io::ZeroCopyOutputStream* output)
-{
-    if (auto* file_output = dynamic_cast<google::protobuf::io::FileOutputStream*>(output))
-        return file_output->Flush();
-    if (auto* copying_output = dynamic_cast<google::protobuf::io::CopyingOutputStreamAdaptor*>(output))
-        return copying_output->Flush();
-    return true;
-}
-
 } // namespace
 
 ProtobufStreamWriter::ProtobufStreamWriter(int fd, uint32_t magic_number, uint32_t version)
+    : output_stream{std::make_unique<google::protobuf::io::FileOutputStream>(fd)}
 {
-    auto file_output_stream = std::make_unique<google::protobuf::io::FileOutputStream>(fd);
-    file_output_stream->SetCloseOnDelete(false);
-    output_stream = std::move(file_output_stream);
     write_header_to(magic_number, version, output_stream);
     flush();
 }
@@ -59,16 +48,12 @@ ProtobufStreamWriter::ProtobufStreamWriter(int fd, uint32_t magic_number, uint32
 ProtobufStreamWriter::ProtobufStreamWriter(std::filesystem::path filepath,
                                            uint32_t magic_number,
                                            uint32_t version,
-                                           bool force,
-                                           std::optional<CompressionType> compression)
+                                           bool force)
     : filepath(filepath)
 {
     namespace fs = std::filesystem;
 
-    auto output_compression =
-        compression.value_or(filepath == "-" ? CompressionType::NONE : compression_from_filename(filepath.c_str()));
-
-    if (filepath != "-" && fs::exists(filepath)) {
+    if (fs::exists(filepath)) {
         if (!force) {
             std::cerr << "ERROR: File already exists: " << filepath.string() << "\n";
             throw std::system_error(errno, std::system_category(), filepath.string());
@@ -77,8 +62,7 @@ ProtobufStreamWriter::ProtobufStreamWriter(std::filesystem::path filepath,
         fs::remove(filepath);
     }
 
-    owned_output_stream =
-        open_compressed_ostream(filepath.c_str(), std::ios_base::out | std::ios_base::trunc, output_compression);
+    owned_output_stream = open_compressed_ostream(filepath.c_str(), std::ios_base::out | std::ios_base::trunc);
     if (!owned_output_stream || !*owned_output_stream)
         throw std::system_error(errno, std::system_category(), filepath.string());
     copying_output_stream = std::make_unique<OstreamCopyingOutputStream>(owned_output_stream.get());
@@ -104,7 +88,7 @@ bool ProtobufStreamWriter::flush()
     if (!output_stream)
         return true;
 
-    bool ok = flush_output_stream(output_stream.get());
+    bool ok = output_stream->Flush();
     if (owned_output_stream) {
         owned_output_stream->flush();
         ok = ok && owned_output_stream->good();

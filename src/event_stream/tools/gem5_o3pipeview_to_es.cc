@@ -29,7 +29,6 @@ using perf_streams::event_stream::DataType;
 using perf_streams::event_stream::EventHandle;
 using perf_streams::event_stream::EventStreamProto;
 using perf_streams::event_stream::EventType;
-using perf_streams::protobuf_utils::CompressionType;
 
 struct InstructionRecord
 {
@@ -159,26 +158,6 @@ void parse_stage_line(std::string_view line,
                 stage_name, stream.define_event(stage_name, fmt::format("gem5 O3PipeView stage '{}'", stage_name)));
         }
     }
-}
-
-CompressionType parse_compression(const std::string& value)
-{
-    if (value == "none")
-        return CompressionType::NONE;
-    if (value == "xz")
-        return CompressionType::XZ;
-    throw std::runtime_error(fmt::format("unsupported compression '{}': expected auto, none, or xz", value));
-}
-
-std::optional<CompressionType> resolve_compression(const std::string& output_path, const std::string& value)
-{
-    if (value == "auto") {
-        if (output_path == "-")
-            return CompressionType::NONE;
-        return std::nullopt;
-    }
-
-    return parse_compression(value);
 }
 
 void add_stage_metadata(EventStreamProto& stream,
@@ -313,7 +292,6 @@ int main(int argc, char** argv)
     try {
         std::string input_path = "-";
         std::string output_path = "-";
-        std::string compression_arg = "auto";
         std::string tx_start_stage = "fetch";
         std::string tx_end_stage = "store";
         bool force = false;
@@ -321,9 +299,6 @@ int main(int argc, char** argv)
         po::options_description desc("Allowed options");
         desc.add_options()("help,h", "produce help message")(
             "output,o", po::value<std::string>(&output_path)->default_value("-"), "event stream output path")(
-            "compress",
-            po::value<std::string>(&compression_arg)->default_value("auto"),
-            "output compression: auto, none, or xz")(
             "force,f", po::bool_switch(&force), "overwrite an existing output file")(
             "tx-start",
             po::value<std::string>(&tx_start_stage)->default_value("fetch"),
@@ -345,8 +320,7 @@ int main(int argc, char** argv)
             return EXIT_SUCCESS;
         }
 
-        auto compression = resolve_compression(output_path, compression_arg);
-        EventStreamProto output(output_path, force, compression);
+        EventStreamProto output(output_path, force);
 
         if (input_path == "-") {
             std::cin >> std::noskipws;

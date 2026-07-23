@@ -10,12 +10,10 @@
 #include <boost/iostreams/filter/lzma.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <optional>
 #include <stdexcept>
 #include <thread>
 
@@ -33,18 +31,6 @@ auto lzma_params(unsigned max_threads = 4)
     boost::iostreams::lzma_params params{};
     params.threads = compression_threads(max_threads);
     return params;
-}
-
-void push_ostream_compressor(boost::iostreams::filtering_ostream& out, CompressionType compression)
-{
-    if (compression == CompressionType::GZIP)
-        out.push(boost::iostreams::gzip_compressor());
-    else if (compression == CompressionType::ZLIB)
-        out.push(boost::iostreams::zlib_compressor());
-    else if (compression == CompressionType::BZ2)
-        out.push(boost::iostreams::bzip2_compressor());
-    else if (compression == CompressionType::XZ)
-        out.push(boost::iostreams::lzma_compressor(lzma_params()));
 }
 
 } // namespace
@@ -65,27 +51,31 @@ CompressionType compression_from_filename(const char* filename)
     return CompressionType::NONE;
 }
 
-std::unique_ptr<std::ostream> open_compressed_ostream(const char* filename,
-                                                      std::ios_base::openmode mode,
-                                                      std::optional<CompressionType> compression)
+std::unique_ptr<std::ostream> open_compressed_ostream(const char* filename, std::ios_base::openmode mode)
 {
-    auto compression_type = compression.value_or(compression_from_filename(filename));
-
     if (std::strlen(filename) == 1 && filename[0] == '-') {
         auto out = std::make_unique<boost::iostreams::filtering_ostream>();
-        push_ostream_compressor(*out, compression_type);
         out->push(boost::ref(std::cout));
         return out;
     }
 
-    if (compression_type == CompressionType::NONE)
-        return std::make_unique<std::ofstream>(filename, mode);
+    auto compression = compression_from_filename(filename);
+    if (compression == CompressionType::NONE)
+        return make_unique<std::ofstream>(filename, mode);
 
     if ((mode & std::ios_base::app) || !(mode & std::ios_base::trunc))
         throw std::runtime_error("Compressed output streams require truncation; must not append.");
 
     auto out = std::make_unique<boost::iostreams::filtering_ostream>();
-    push_ostream_compressor(*out, compression_type);
+
+    if (compression == CompressionType::GZIP)
+        out->push(boost::iostreams::gzip_compressor());
+    else if (compression == CompressionType::ZLIB)
+        out->push(boost::iostreams::zlib_compressor());
+    else if (compression == CompressionType::BZ2)
+        out->push(boost::iostreams::bzip2_compressor());
+    else if (compression == CompressionType::XZ)
+        out->push(boost::iostreams::lzma_compressor(lzma_params()));
     out->push(boost::iostreams::file_sink(filename, mode | std::ios_base::binary));
 
     return out;
@@ -96,7 +86,7 @@ std::unique_ptr<std::istream> open_compressed_istream(const char* filename, std:
     auto compression = compression_from_filename(filename);
 
     if (compression == CompressionType::NONE)
-        return std::make_unique<std::ifstream>(filename, mode);
+        return make_unique<std::ifstream>(filename, mode);
 
     auto in = std::make_unique<boost::iostreams::filtering_istream>();
     if (compression == CompressionType::GZIP)
