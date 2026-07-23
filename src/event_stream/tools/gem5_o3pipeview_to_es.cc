@@ -255,8 +255,8 @@ void convert(std::istream& input,
 
         if (line.starts_with(fmt::format("O3PipeView:{}:", tx_start_stage))) {
             if (current_instruction)
-                parse_error(
-                    line_number, fmt::format("encountered {} before retire for the current instruction", tx_start_stage));
+                parse_error(line_number,
+                            fmt::format("encountered {} before retire for the current instruction", tx_start_stage));
             current_instruction = parse_start_line(line, line_number, tx_start_stage);
             if (!definitions.stage_events.contains(tx_start_stage)) {
                 definitions.stage_events.emplace(
