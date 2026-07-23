@@ -97,7 +97,7 @@ std::vector<std::string_view> split_all(std::string_view line)
     std::vector<std::string_view> parts;
     std::size_t start = 0;
     while (true) {
-        std::size_t pos = line.find(':', start);
+        auto pos = line.find(':', start);
         if (pos == std::string_view::npos) {
             parts.push_back(line.substr(start));
             return parts;
