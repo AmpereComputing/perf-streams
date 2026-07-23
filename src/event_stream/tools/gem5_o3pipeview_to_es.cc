@@ -34,7 +34,7 @@ using perf_streams::protobuf_utils::CompressionType;
 struct InstructionRecord
 {
     std::uint64_t start_time{0};
-    std::uint64_t pc{0};
+    std::uint64_t program_counter{0};
     std::uint64_t micro_pc{0};
     std::uint64_t seq_num{0};
     std::string disasm;
@@ -62,7 +62,7 @@ struct Definitions
     EventType end_transaction;
     DataType txid;
     DataType seq_num;
-    DataType pc;
+    DataType program_counter;
     DataType micro_pc;
     DataType disasm;
     std::unordered_map<std::string, EventType> stage_events;
@@ -127,7 +127,7 @@ InstructionRecord parse_start_line(std::string_view line, std::size_t line_numbe
 
     InstructionRecord record;
     record.start_time = parse_u64(fields[2], line_number, fmt::format("{} time", start_stage));
-    record.pc = parse_u64(fields[3], line_number, "pc");
+    record.program_counter = parse_u64(fields[3], line_number, "pc");
     record.micro_pc = parse_u64(fields[4], line_number, "micro_pc");
     record.seq_num = parse_u64(fields[5], line_number, "seq_num");
     record.disasm = std::string(line.substr(start));
@@ -188,7 +188,7 @@ void add_stage_metadata(EventStreamProto& stream,
 {
     stream.add_uint_data(event, definitions.txid, instruction.seq_num);
     stream.add_uint_data(event, definitions.seq_num, instruction.seq_num);
-    stream.add_uint_data(event, definitions.pc, instruction.pc);
+    stream.add_uint_data(event, definitions.program_counter, instruction.program_counter);
     stream.add_uint_data(event, definitions.micro_pc, instruction.micro_pc);
     stream.add_string_data(event, definitions.disasm, instruction.disasm);
 }
@@ -234,7 +234,7 @@ void convert(std::istream& input,
         .end_transaction = output.define_event("end_transaction", "End of a transaction"),
         .txid = output.define_data("txid", "Transaction ID"),
         .seq_num = output.define_data("seq_num", "gem5 O3PipeView sequence number"),
-        .pc = output.define_data("pc", "Instruction program counter"),
+        .program_counter = output.define_data("program_counter", "Instruction program counter"),
         .micro_pc = output.define_data("micro_pc", "Instruction micro-PC"),
         .disasm = output.define_data("disasm", "Instruction disassembly"),
     };

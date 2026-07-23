@@ -52,13 +52,13 @@ TEST_F(Gem5O3PipeViewToESTest, ConvertsToRawEventStreamFile)
                           + fixture("gem5_basic.trace") + "\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=100 name=start_transaction txid=1\n"));
     EXPECT_THAT(viewer_output,
-                HasSubstr("event time=100 name=fetch txid=1 seq_num=1 pc=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
+                HasSubstr("event time=100 name=fetch txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
     EXPECT_THAT(viewer_output,
-                HasSubstr("event time=170 name=store txid=1 seq_num=1 pc=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
+                HasSubstr("event time=170 name=store txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=170 name=end_transaction txid=1\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=200 name=start_transaction txid=2\n"));
     EXPECT_THAT(viewer_output,
-                HasSubstr("event time=260 name=retire txid=2 seq_num=2 pc=4100 micro_pc=1 disasm=ldr x2, [x3]\n"));
+                HasSubstr("event time=260 name=retire txid=2 seq_num=2 program_counter=4100 micro_pc=1 disasm=ldr x2, [x3]\n"));
     EXPECT_THAT(viewer_output, Not(HasSubstr("event time=260 name=end_transaction txid=2\n")));
 }
 
@@ -119,7 +119,7 @@ TEST_F(Gem5O3PipeViewToESTest, SupportsCustomTransactionStages)
         HasSubstr("parameter name=tx_start_stage description=Stage used to emit start_transaction value=rename\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=120 name=start_transaction txid=1\n"));
     EXPECT_THAT(viewer_output,
-                HasSubstr("event time=120 name=rename txid=1 seq_num=1 pc=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
+                HasSubstr("event time=120 name=rename txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=160 name=end_transaction txid=1\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=220 name=start_transaction txid=2\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=260 name=end_transaction txid=2\n"));
@@ -140,7 +140,7 @@ TEST_F(Gem5O3PipeViewToESTest, HandlesFutureStagesWithoutCodeChanges)
     EXPECT_THAT(viewer_output, HasSubstr("definition name=future description=gem5 O3PipeView stage 'future' id="));
     EXPECT_THAT(viewer_output, HasSubstr("event time=300 name=start_transaction txid=3\n"));
     EXPECT_THAT(viewer_output,
-                HasSubstr("event time=335 name=future txid=3 seq_num=3 pc=8192 micro_pc=0 disasm=sub x4, x5, x6\n"));
+                HasSubstr("event time=335 name=future txid=3 seq_num=3 program_counter=8192 micro_pc=0 disasm=sub x4, x5, x6\n"));
     EXPECT_THAT(viewer_output, HasSubstr("event time=335 name=end_transaction txid=3\n"));
 }
 
