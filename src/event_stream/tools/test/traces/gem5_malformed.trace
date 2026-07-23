@@ -1,0 +1,2 @@
+O3PipeView:fetch:100:0x1000:0:1:add x0, x0, x1
+O3PipeView:retire:160:store

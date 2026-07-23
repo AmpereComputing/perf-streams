@@ -34,6 +34,14 @@ EventStreamProto::EventStreamProto(const std::string& filename, bool force)
 {
 }
 
+EventStreamProto::EventStreamProto(const std::string& filename,
+                                   bool force,
+                                   std::optional<protobuf_utils::CompressionType> compression)
+    : writer(std::make_unique<protobuf_utils::ProtobufStreamWriter>(
+          filename, protobuf_magic, protobuf_es_version, force, compression))
+{
+}
+
 void EventStreamProto::finalize_event_definition(EventType event_type,
                                                  const std::string& name,
                                                  const std::string& description)

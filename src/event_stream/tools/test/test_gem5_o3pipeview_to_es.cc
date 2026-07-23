@@ -1,0 +1,143 @@
+// Copyright (c) 2026, Ampere Computing LLC
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include "testing/run_tool.h"
+
+#include <filesystem>
+#include <string>
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+using ::testing::HasSubstr;
+using ::testing::Not;
+
+struct Gem5O3PipeViewToESTest : perf_streams::testing::CommandTest
+{
+    Gem5O3PipeViewToESTest() : CommandTest(O3PIPEVIEW_TO_ES_BIN, "traces") {}
+
+    std::string output_file(const std::string& name) const { return stream_output(name); }
+
+    std::pair<std::string, int> view_output(const std::string& path) const
+    {
+        return perf_streams::testing::run_tool(EVENT_STREAM_VIEWER_BIN, path);
+    }
+
+    void clear_output(const std::string& path) const { std::filesystem::remove(path); }
+};
+
+TEST_F(Gem5O3PipeViewToESTest, ConvertsToRawEventStreamFile)
+{
+    auto output = output_file("gem5_o3pipeview.es");
+    clear_output(output);
+
+    auto [converter_output, status] = run_command("--output", output, fixture("gem5_basic.trace"));
+    EXPECT_EQ(status, 0);
+    EXPECT_EQ(converter_output, "");
+
+    auto [viewer_output, viewer_status] = view_output(output);
+    EXPECT_EQ(viewer_status, 0);
+    EXPECT_THAT(viewer_output, HasSubstr("parameter name=source_format description=Original trace format value=gem5.o3pipeview\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("parameter name=time_unit description=Timestamp unit value=gem5_tick\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("parameter name=tx_start_stage description=Stage used to emit start_transaction value=fetch\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("parameter name=tx_end_stage description=Stage used to emit end_transaction value=store\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("parameter name=input_path description=Path to the source O3PipeView trace value=" + fixture("gem5_basic.trace") + "\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=100 name=start_transaction txid=1\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=100 name=fetch txid=1 seq_num=1 pc=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=170 name=store txid=1 seq_num=1 pc=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=170 name=end_transaction txid=1\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=200 name=start_transaction txid=2\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=260 name=retire txid=2 seq_num=2 pc=4100 micro_pc=1 disasm=ldr x2, [x3]\n"));
+    EXPECT_THAT(viewer_output, Not(HasSubstr("event time=260 name=end_transaction txid=2\n")));
+}
+
+TEST_F(Gem5O3PipeViewToESTest, ConvertsToCompressedEventStreamFile)
+{
+    auto output = output_file("gem5_o3pipeview.es.xz");
+    clear_output(output);
+
+    auto [converter_output, status] = run_command("--output", output, "--compress", "xz", fixture("gem5_basic.trace"));
+    EXPECT_EQ(status, 0);
+    EXPECT_EQ(converter_output, "");
+
+    auto [viewer_output, viewer_status] = view_output(output);
+    EXPECT_EQ(viewer_status, 0);
+    EXPECT_THAT(viewer_output, HasSubstr("event time=170 name=end_transaction txid=1\n"));
+}
+
+TEST_F(Gem5O3PipeViewToESTest, SupportsStdoutRawAndXzOutput)
+{
+    auto raw_output = output_file("gem5_stdout.es");
+    auto xz_output = output_file("gem5_stdout.es.xz");
+    clear_output(raw_output);
+    clear_output(xz_output);
+
+    auto [raw_converter_output, raw_status] =
+        run_command("--output", "-", fixture("gem5_basic.trace"), ">", raw_output);
+    EXPECT_EQ(raw_status, 0);
+    EXPECT_EQ(raw_converter_output, "");
+
+    auto [xz_converter_output, xz_status] =
+        run_command("--output", "-", "--compress", "xz", fixture("gem5_basic.trace"), ">", xz_output);
+    EXPECT_EQ(xz_status, 0);
+    EXPECT_EQ(xz_converter_output, "");
+
+    auto [raw_viewer_output, raw_viewer_status] = view_output(raw_output);
+    EXPECT_EQ(raw_viewer_status, 0);
+    EXPECT_THAT(raw_viewer_output, HasSubstr("event time=100 name=start_transaction txid=1\n"));
+
+    auto [xz_viewer_output, xz_viewer_status] = view_output(xz_output);
+    EXPECT_EQ(xz_viewer_status, 0);
+    EXPECT_THAT(xz_viewer_output, HasSubstr("event time=170 name=end_transaction txid=1\n"));
+}
+
+TEST_F(Gem5O3PipeViewToESTest, SupportsCustomTransactionStages)
+{
+    auto output = output_file("gem5_custom_tx.es");
+    clear_output(output);
+
+    auto [converter_output, status] =
+        run_command("--output", output, "--tx-start", "rename", "--tx-end", "retire", fixture("gem5_basic.trace"));
+    EXPECT_EQ(status, 0);
+    EXPECT_EQ(converter_output, "");
+
+    auto [viewer_output, viewer_status] = view_output(output);
+    EXPECT_EQ(viewer_status, 0);
+    EXPECT_THAT(viewer_output, HasSubstr("event time=120 name=start_transaction txid=1\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=120 name=rename txid=1 seq_num=1 pc=4096 micro_pc=0 disasm=add x0, x0, x1\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=160 name=end_transaction txid=1\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=220 name=start_transaction txid=2\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=260 name=end_transaction txid=2\n"));
+}
+
+TEST_F(Gem5O3PipeViewToESTest, HandlesFutureStagesWithoutCodeChanges)
+{
+    auto output = output_file("gem5_future_stage.es");
+    clear_output(output);
+
+    auto [converter_output, status] =
+        run_command("--output", output, "--tx-start", "future", "--tx-end", "future", fixture("gem5_future_stage.trace"));
+    EXPECT_EQ(status, 0);
+    EXPECT_EQ(converter_output, "");
+
+    auto [viewer_output, viewer_status] = view_output(output);
+    EXPECT_EQ(viewer_status, 0);
+    EXPECT_THAT(viewer_output, HasSubstr("definition name=future description=gem5 O3PipeView stage 'future' id="));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=335 name=start_transaction txid=3\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=335 name=future txid=3 seq_num=3 pc=8192 micro_pc=0 disasm=sub x4, x5, x6\n"));
+    EXPECT_THAT(viewer_output, HasSubstr("event time=335 name=end_transaction txid=3\n"));
+}
+
+TEST_F(Gem5O3PipeViewToESTest, ReportsMalformedLines)
+{
+    auto [output, status] = run_command("--output", "-", fixture("gem5_malformed.trace"));
+    EXPECT_NE(status, 0);
+    EXPECT_THAT(output, HasSubstr("ERROR: line 2: stage line must contain stage/time pairs\n"));
+}
+
+TEST_F(Gem5O3PipeViewToESTest, ReportsStageBeforeFetch)
+{
+    auto [output, status] = run_command("--output", "-", fixture("gem5_stage_before_fetch.trace"));
+    EXPECT_NE(status, 0);
+    EXPECT_THAT(output, HasSubstr("ERROR: line 1: encountered stage before first fetch\n"));
+}
