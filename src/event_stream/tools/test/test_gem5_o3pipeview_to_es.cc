@@ -95,6 +95,19 @@ TEST_F(Gem5O3PipeViewToESTest, ConvertsToRawEventStreamFile)
         viewer_output,
         HasSubstr("event time=260 name=retire txid=2 seq_num=2 program_counter=4100 micro_pc=1 disasm=ldr x2, [x3]\n"));
     EXPECT_THAT(viewer_output, Not(HasSubstr("event time=260 name=end_transaction txid=2\n")));
+
+    auto start_pos = viewer_output.find("event time=100 name=start_transaction txid=1\n");
+    auto fetch_pos = viewer_output.find(
+        "event time=100 name=fetch txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n");
+    auto store_pos = viewer_output.find(
+        "event time=170 name=store txid=1 seq_num=1 program_counter=4096 micro_pc=0 disasm=add x0, x0, x1\n");
+    auto end_pos = viewer_output.find("event time=170 name=end_transaction txid=1\n");
+    ASSERT_NE(start_pos, std::string::npos);
+    ASSERT_NE(fetch_pos, std::string::npos);
+    ASSERT_NE(store_pos, std::string::npos);
+    ASSERT_NE(end_pos, std::string::npos);
+    EXPECT_LT(start_pos, fetch_pos);
+    EXPECT_LT(store_pos, end_pos);
 }
 
 TEST_F(Gem5O3PipeViewToESTest, ConvertsToCompressedEventStreamFile)
@@ -186,6 +199,23 @@ TEST_F(Gem5O3PipeViewToESTest, EmitsEventsInTimestampOrder)
     auto times = event_times(viewer_output);
     EXPECT_TRUE(std::ranges::is_sorted(times));
     EXPECT_THAT(times, ElementsAre(100, 100, 110, 150, 150, 160, 200, 300));
+}
+
+TEST_F(Gem5O3PipeViewToESTest, OmitsZeroTimeStages)
+{
+    auto output = output_file("gem5_zero_time.es");
+    clear_output(output);
+
+    auto [converter_output, status] = run_command("--output", output, fixture("gem5_zero_time.trace"));
+    EXPECT_EQ(status, EXIT_SUCCESS);
+    EXPECT_EQ(converter_output, "");
+
+    auto [viewer_output, viewer_status] = view_output(output);
+    EXPECT_EQ(viewer_status, EXIT_SUCCESS);
+    EXPECT_THAT(viewer_output, Not(HasSubstr("event time=0 ")));
+    EXPECT_THAT(viewer_output, Not(HasSubstr("event time=0 name=decode")));
+    auto times = event_times(viewer_output);
+    EXPECT_THAT(times, ElementsAre(100, 100, 120, 130));
 }
 
 TEST_F(Gem5O3PipeViewToESTest, ValidatesInputBeforeOverwritingOutput)

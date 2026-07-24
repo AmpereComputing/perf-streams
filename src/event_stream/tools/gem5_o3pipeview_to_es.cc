@@ -4,17 +4,18 @@
 
 #include "event_stream/event_stream_proto.h"
 
-#include <algorithm>
 #include <boost/program_options.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
 #include <fmt/base.h>
 #include <fmt/format.h>
 #include <fstream>
 #include <ios>
 #include <iostream>
 #include <optional>
+#include <queue>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -36,6 +37,8 @@ struct StageTime
 {
     std::string stage;
     std::uint64_t time{0};
+
+    StageTime(std::string stage_, std::uint64_t time_) : stage(std::move(stage_)), time(time_) {}
 };
 
 struct InstructionRecord
@@ -56,13 +59,7 @@ struct InstructionRecord
             }
         }
 
-        stage_times.push_back({.stage = std::move(stage), .time = time});
-    }
-
-    bool has_stage(std::string_view stage) const
-    {
-        return std::ranges::any_of(stage_times,
-                                   [stage](const StageTime& stage_time) { return stage_time.stage == stage; });
+        stage_times.emplace_back(std::move(stage), time);
     }
 };
 
@@ -90,6 +87,11 @@ struct PendingEvent
     std::size_t instruction_index{0};
     std::size_t stage_index{0};
     PendingEventKind kind{PendingEventKind::stage};
+
+    PendingEvent(std::uint64_t time_, std::size_t instruction_index_, std::size_t stage_index_, PendingEventKind kind_)
+        : time(time_), instruction_index(instruction_index_), stage_index(stage_index_), kind(kind_)
+    {
+    }
 };
 
 [[noreturn]] void parse_error(std::size_t line_number, std::string_view message)
@@ -123,11 +125,11 @@ std::vector<std::string_view> split_all(std::string_view line)
     while (true) {
         auto pos = line.find(':', start);
         if (pos == std::string_view::npos) {
-            parts.push_back(line.substr(start));
+            parts.emplace_back(line.substr(start));
             return parts;
         }
 
-        parts.push_back(line.substr(start, pos - start));
+        parts.emplace_back(line.substr(start, pos - start));
         start = pos + 1;
     }
 }
@@ -159,7 +161,7 @@ InstructionRecord parse_start_line(std::string_view line, std::size_t line_numbe
     return record;
 }
 
-void parse_stage_line(std::string_view line,
+bool parse_stage_line(std::string_view line,
                       std::size_t line_number,
                       InstructionRecord& instruction,
                       Definitions& definitions,
@@ -171,6 +173,7 @@ void parse_stage_line(std::string_view line,
     if (((fields.size() - 1) % 2) != 0)
         parse_error(line_number, "stage line must contain stage/time pairs");
 
+    bool saw_retire = false;
     for (std::size_t i = 1; i < fields.size(); i += 2) {
         auto stage = fields[i];
         if (stage.empty())
@@ -178,11 +181,15 @@ void parse_stage_line(std::string_view line,
 
         auto stage_name = std::string(stage);
         instruction.record_stage(stage_name, parse_u64(fields[i + 1], line_number, stage_name + " time"));
+        if (stage_name == "retire")
+            saw_retire = true;
         if (!definitions.stage_events.contains(stage_name)) {
             definitions.stage_events.emplace(
                 stage_name, stream.define_event(stage_name, fmt::format("gem5 O3PipeView stage '{}'", stage_name)));
         }
     }
+
+    return saw_retire;
 }
 
 void add_stage_metadata(EventStreamProto& stream,
@@ -241,60 +248,118 @@ int pending_event_kind_order(PendingEventKind kind)
     throw std::logic_error("unknown pending event kind");
 }
 
-std::vector<PendingEvent> collect_pending_events(const std::vector<InstructionRecord>& instructions,
-                                                 const std::string& tx_start_stage,
-                                                 const std::string& tx_end_stage)
+bool pending_event_less(const PendingEvent& left, const PendingEvent& right)
 {
-    std::size_t event_count = 0;
-    for (const auto& instruction : instructions) {
-        for (const auto& stage_time : instruction.stage_times) {
-            if (stage_time.time == 0)
-                continue;
+    return std::tuple(left.time, left.instruction_index, left.stage_index, pending_event_kind_order(left.kind))
+           < std::tuple(right.time, right.instruction_index, right.stage_index, pending_event_kind_order(right.kind));
+}
 
-            ++event_count;
-            if (stage_time.stage == tx_start_stage)
-                ++event_count;
-            if (stage_time.stage == tx_end_stage)
-                ++event_count;
-        }
+struct PendingEventCompare
+{
+    bool operator()(const PendingEvent& left, const PendingEvent& right) const
+    {
+        return pending_event_less(right, left);
+    }
+};
+
+std::optional<PendingEvent> first_pending_event_for_stage(const InstructionRecord& instruction,
+                                                          std::size_t instruction_index,
+                                                          std::size_t stage_index,
+                                                          const std::string& tx_start_stage)
+{
+    for (; stage_index < instruction.stage_times.size(); ++stage_index) {
+        const auto& stage_time = instruction.stage_times[stage_index];
+        if (stage_time.time == 0)
+            continue;
+
+        auto kind = stage_time.stage == tx_start_stage ? PendingEventKind::start_transaction : PendingEventKind::stage;
+        return PendingEvent(stage_time.time, instruction_index, stage_index, kind);
     }
 
-    std::vector<PendingEvent> events;
-    events.reserve(event_count);
+    return std::nullopt;
+}
+
+std::optional<PendingEvent> next_pending_event(const InstructionRecord& instruction,
+                                               const PendingEvent& current_event,
+                                               const std::string& tx_start_stage,
+                                               const std::string& tx_end_stage)
+{
+    const auto& stage_time = instruction.stage_times[current_event.stage_index];
+    switch (current_event.kind) {
+    case PendingEventKind::start_transaction:
+        return PendingEvent(
+            stage_time.time, current_event.instruction_index, current_event.stage_index, PendingEventKind::stage);
+    case PendingEventKind::stage:
+        if (stage_time.stage == tx_end_stage) {
+            return PendingEvent(stage_time.time,
+                                current_event.instruction_index,
+                                current_event.stage_index,
+                                PendingEventKind::end_transaction);
+        }
+        break;
+    case PendingEventKind::end_transaction:
+        break;
+    }
+
+    return first_pending_event_for_stage(
+        instruction, current_event.instruction_index, current_event.stage_index + 1, tx_start_stage);
+}
+
+void retire_completed_instructions(std::deque<InstructionRecord>& instructions,
+                                   std::vector<bool>& instruction_completed,
+                                   std::size_t& first_instruction_index)
+{
+    while (!instructions.empty() && instruction_completed[first_instruction_index]) {
+        instructions.pop_front();
+        ++first_instruction_index;
+    }
+}
+
+void emit_pending_events(std::deque<InstructionRecord>& instructions,
+                         EventStreamProto& output,
+                         const Definitions& definitions,
+                         const std::string& tx_start_stage,
+                         const std::string& tx_end_stage)
+{
+    std::priority_queue<PendingEvent, std::vector<PendingEvent>, PendingEventCompare> pending_events;
+    std::vector<bool> instruction_completed(instructions.size(), false);
     for (std::size_t instruction_index = 0; instruction_index < instructions.size(); ++instruction_index) {
         const auto& instruction = instructions[instruction_index];
-        for (std::size_t stage_index = 0; stage_index < instruction.stage_times.size(); ++stage_index) {
-            const auto& stage_time = instruction.stage_times[stage_index];
-            if (stage_time.time == 0)
-                continue;
-
-            if (stage_time.stage == tx_start_stage) {
-                events.push_back({.time = stage_time.time,
-                                  .instruction_index = instruction_index,
-                                  .stage_index = stage_index,
-                                  .kind = PendingEventKind::start_transaction});
-            }
-
-            events.push_back({.time = stage_time.time,
-                              .instruction_index = instruction_index,
-                              .stage_index = stage_index,
-                              .kind = PendingEventKind::stage});
-
-            if (stage_time.stage == tx_end_stage) {
-                events.push_back({.time = stage_time.time,
-                                  .instruction_index = instruction_index,
-                                  .stage_index = stage_index,
-                                  .kind = PendingEventKind::end_transaction});
-            }
+        if (auto pending_event = first_pending_event_for_stage(instruction, instruction_index, 0, tx_start_stage)) {
+            pending_events.emplace(*pending_event);
+        } else {
+            instruction_completed[instruction_index] = true;
         }
     }
 
-    std::ranges::sort(events, [](const PendingEvent& left, const PendingEvent& right) {
-        return std::tuple(left.time, left.instruction_index, left.stage_index, pending_event_kind_order(left.kind))
-               < std::tuple(
-                   right.time, right.instruction_index, right.stage_index, pending_event_kind_order(right.kind));
-    });
-    return events;
+    std::size_t first_instruction_index = 0;
+    retire_completed_instructions(instructions, instruction_completed, first_instruction_index);
+
+    while (!pending_events.empty()) {
+        auto pending_event = pending_events.top();
+        pending_events.pop();
+
+        const auto& instruction = instructions.at(pending_event.instruction_index - first_instruction_index);
+        const auto& stage_time = instruction.stage_times[pending_event.stage_index];
+        switch (pending_event.kind) {
+        case PendingEventKind::start_transaction:
+            emit_marker(output, definitions.start_transaction, pending_event.time, definitions, instruction);
+            break;
+        case PendingEventKind::stage:
+            emit_stage(output, definitions, instruction, stage_time.stage, pending_event.time);
+            break;
+        case PendingEventKind::end_transaction:
+            emit_marker(output, definitions.end_transaction, pending_event.time, definitions, instruction);
+            break;
+        }
+
+        if (auto next_event = next_pending_event(instruction, pending_event, tx_start_stage, tx_end_stage)) {
+            pending_events.emplace(*next_event);
+        } else {
+            instruction_completed[pending_event.instruction_index] = true;
+            retire_completed_instructions(instructions, instruction_completed, first_instruction_index);
+        }
+    }
 }
 
 void convert(std::istream& input,
@@ -313,7 +378,7 @@ void convert(std::istream& input,
         .disasm = output.define_data("disasm", "Instruction disassembly"),
     };
 
-    std::vector<InstructionRecord> instructions;
+    std::deque<InstructionRecord> instructions;
     std::optional<InstructionRecord> current_instruction;
 
     std::size_t line_number = 0;
@@ -343,9 +408,8 @@ void convert(std::istream& input,
         if (!current_instruction)
             parse_error(line_number, fmt::format("encountered stage before first {}", tx_start_stage));
 
-        parse_stage_line(line, line_number, *current_instruction, definitions, output);
-        if (current_instruction->has_stage("retire")) {
-            instructions.push_back(std::move(*current_instruction));
+        if (parse_stage_line(line, line_number, *current_instruction, definitions, output)) {
+            instructions.emplace_back(std::move(*current_instruction));
             current_instruction.reset();
         }
     }
@@ -363,21 +427,7 @@ void convert(std::istream& input,
         output.set_string_parameter("input_path", "Path to the source O3PipeView trace", input_path);
     output.start_simulation();
 
-    for (const auto& pending_event : collect_pending_events(instructions, tx_start_stage, tx_end_stage)) {
-        const auto& instruction = instructions[pending_event.instruction_index];
-        const auto& stage_time = instruction.stage_times[pending_event.stage_index];
-        switch (pending_event.kind) {
-        case PendingEventKind::start_transaction:
-            emit_marker(output, definitions.start_transaction, pending_event.time, definitions, instruction);
-            break;
-        case PendingEventKind::stage:
-            emit_stage(output, definitions, instruction, stage_time.stage, pending_event.time);
-            break;
-        case PendingEventKind::end_transaction:
-            emit_marker(output, definitions.end_transaction, pending_event.time, definitions, instruction);
-            break;
-        }
-    }
+    emit_pending_events(instructions, output, definitions, tx_start_stage, tx_end_stage);
 }
 
 } // namespace
