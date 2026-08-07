@@ -9,6 +9,7 @@ from contextlib import ExitStack
 from pathlib import Path
 
 import evp
+
 from perf_streams.event_stream import Event, EventScalarValue
 from perf_streams.processor.histogram import Histogram
 
@@ -16,7 +17,7 @@ from perf_streams.processor.histogram import Histogram
 class OccupancyTracker:
     """Occupancy tracking helper."""
 
-    def __init__(self, alloc_event: str, dealloc_event: str, collect_average: bool = False) -> None:
+    def __init__(self, alloc_event: str, dealloc_event: str, *, collect_average: bool = False) -> None:
         """Track occupancy based on matching allocation and deallocation events."""
         self.entries: Counter[str] = Counter()
         self.occupancy_time: Counter[str] = Counter()
@@ -66,6 +67,7 @@ class Occupancy(OccupancyTracker):
         output: str,
         name_col: str,
         entries_col: str,
+        *,
         rename: Callable[[str], str] | None = None,
         group_on: str | None = None,
         report_average: bool = False,

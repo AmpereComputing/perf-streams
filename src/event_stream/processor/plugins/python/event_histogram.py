@@ -4,6 +4,7 @@
 """Histogram based upon event data as key."""
 
 import evp
+
 from perf_streams.event_stream import Event, EventScalarValue
 from perf_streams.processor.histogram import Histogram
 
@@ -122,7 +123,7 @@ class EventHistogramPerKey:
             return values
         return self._bucketer(values)
 
-    def metrics(self, time: int) -> dict[str, int]:
+    def metrics(self, _time: int) -> dict[str, int]:
         """Return the collected metrics for the current histograms."""
         all_metrics: dict[str, int] = {}
         for event, histogram in self._events.items():
