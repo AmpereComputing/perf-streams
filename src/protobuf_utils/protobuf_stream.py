@@ -14,6 +14,7 @@ except ImportError:
     from backports import lzma
 
 from google.protobuf.message import Message
+
 from perf_streams.protobuf_utils import SIZE_STRUCT, is32, read_header_from, write_delimited_to, write_header_to
 
 
@@ -65,7 +66,7 @@ class ProtobufStreamReader:
         self.read_index = 0
         self.write_index = 0
 
-    def _check_decompressor_status(self, block: bool = False) -> None:
+    def _check_decompressor_status(self, *, block: bool = False) -> None:
         """Raise if the external decompressor has failed."""
         if self._file_process is None:
             return

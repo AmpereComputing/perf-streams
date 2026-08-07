@@ -6,6 +6,7 @@
 from collections.abc import Callable
 
 import evp
+
 from perf_streams.event_stream import Event
 
 type TxData = bool | int | float | str
@@ -77,7 +78,7 @@ class TransactionTracker:
             else:
                 return
 
-    def get_tx_data(self, txid: int, key: str, search_parents: bool = False) -> TxData | None:
+    def get_tx_data(self, txid: int, key: str, *, search_parents: bool = False) -> TxData | None:
         """Get data recorded for a transaction, optionally searching parents."""
         if txid not in self.tx_data:
             return None
@@ -86,7 +87,7 @@ class TransactionTracker:
         if key in tx_data:
             return tx_data[key]
         if search_parents and txid in self.parents:
-            return self.get_tx_data(self.parents[txid], key, True)
+            return self.get_tx_data(self.parents[txid], key, True)  # noqa: FBT003
         return None
 
     def _remove_ghost_transactions(self, txid: int) -> None:
@@ -131,7 +132,7 @@ class TransactionTracker:
 
         self.end_tx_callback(txid)
 
-        self.add_tx_data(txid, "__ghost__", True)
+        self.add_tx_data(txid, "__ghost__", True)  # noqa: FBT003
         self._remove_ghost_transactions(txid)
 
     def _end_transactions_at_end(self) -> None:

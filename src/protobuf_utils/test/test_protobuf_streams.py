@@ -6,6 +6,7 @@ import os
 import unittest
 
 import example_pb2
+
 from perf_streams.protobuf_stream import *
 from perf_streams.protobuf_utils import *
 
@@ -49,7 +50,7 @@ class TestProtobufStreams(unittest.TestCase):
             if os.path.exists(filename):
                 os.remove(filename)
 
-    def do_protobuf_reader_writer(self, filename, double_close=False):
+    def do_protobuf_reader_writer(self, filename, *, double_close: bool = False):
         magic = 0x12345678
         version = 4
         writer = ProtobufStreamWriter(filename, magic, version)

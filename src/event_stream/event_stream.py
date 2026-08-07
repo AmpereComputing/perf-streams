@@ -121,7 +121,7 @@ class Transaction:
                 if field in event.data:
                     self.values[field] = event.data[field]
 
-    def all_events(self, include_children: bool = False):
+    def all_events(self, *, include_children: bool = False):
         """Generate events from this and all child transactions."""
         for event in self.events:
             yield event
@@ -561,7 +561,7 @@ class EventStreamWriter(ProtobufStreamWriter):
 class EventStreamReader(ProtobufStreamReader):
     """Protobuf-based EventStream reader."""
 
-    def __init__(self, filename: str, all_events: bool = False, convert_enumerations: bool = False):
+    def __init__(self, filename: str, *, all_events: bool = False, convert_enumerations: bool = False):
         """Initialize an event stream for reading.
 
         Args:
