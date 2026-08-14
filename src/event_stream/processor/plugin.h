@@ -30,10 +30,10 @@ class Plugin
 {
 public:
     enum class Phase {
-        DEFINITIONS, // plugin requires definitions (define_event, define_value, define_enumeration)
-        PARAMETERS,  // plugin requires parameters (report_parameter)
-        COUNTERS,    // plugin requires counter values
-        EVENTS,      // plugin requires events (process_event)
+        DEFINITIONS,  // plugin requires definitions (define_event, define_value, define_enumeration)
+        PARAMETERS,   // plugin requires parameters (report_parameter)
+        COUNTERS,     // plugin requires counter values
+        EVENTS,       // plugin requires events (process_event)
         TRANSACTIONS, // plugin requires transaction ancestry tracking
         SIZE
     };
