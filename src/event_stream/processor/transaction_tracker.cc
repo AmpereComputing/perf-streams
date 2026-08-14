@@ -5,6 +5,8 @@
 
 #include "transaction_tracker.h"
 
+#include <vector>
+
 namespace perf_streams::event_stream::processor {
 
 namespace {
@@ -80,45 +82,28 @@ bool TransactionTracker::transaction_complete_after_end(uint64_t txid, const Eve
     if (!ending_txid)
         return false;
 
+    return transaction_complete(txid, *ending_txid);
+}
+
+bool TransactionTracker::transaction_complete(uint64_t txid, std::optional<uint64_t> ending_txid) const
+{
     std::set<uint64_t> visited;
-    return transaction_complete(txid, *ending_txid, visited);
-}
+    std::vector<uint64_t> pending{txid};
+    while (!pending.empty()) {
+        auto current_txid = pending.back();
+        pending.pop_back();
 
-bool TransactionTracker::transaction_complete(uint64_t txid, std::set<uint64_t>& visited) const
-{
-    if (!visited.insert(txid).second)
-        return true;
+        if (!visited.insert(current_txid).second)
+            continue;
 
-    if (!ended_transactions.contains(txid))
-        return false;
-
-    auto transaction = transactions.find(txid);
-    if (transaction == transactions.end())
-        return true;
-
-    for (auto child_txid : transaction->second.children) {
-        if (!transaction_complete(child_txid, visited))
+        if (current_txid != ending_txid && !ended_transactions.contains(current_txid))
             return false;
-    }
 
-    return true;
-}
+        auto transaction = transactions.find(current_txid);
+        if (transaction == transactions.end())
+            continue;
 
-bool TransactionTracker::transaction_complete(uint64_t txid, uint64_t ending_txid, std::set<uint64_t>& visited) const
-{
-    if (!visited.insert(txid).second)
-        return false;
-
-    if (txid != ending_txid && !ended_transactions.contains(txid))
-        return false;
-
-    auto transaction = transactions.find(txid);
-    if (transaction == transactions.end())
-        return true;
-
-    for (auto child_txid : transaction->second.children) {
-        if (!transaction_complete(child_txid, ending_txid, visited))
-            return false;
+        pending.insert(pending.end(), transaction->second.children.begin(), transaction->second.children.end());
     }
 
     return true;
@@ -133,13 +118,25 @@ void TransactionTracker::update(const Event& event)
     if (!txid)
         return;
 
-    ended_transactions.erase(*txid);
+    auto restarting = ended_transactions.erase(*txid) != 0;
 
-    if (auto transaction = transactions.find(*txid); transaction != transactions.end() && transaction->second.parent) {
-        if (auto previous_parent = transactions.find(*transaction->second.parent);
-            previous_parent != transactions.end())
-            previous_parent->second.children.erase(*txid);
+    if (auto transaction = transactions.find(*txid); transaction != transactions.end()) {
+        if (transaction->second.parent) {
+            if (auto previous_parent = transactions.find(*transaction->second.parent);
+                previous_parent != transactions.end())
+                previous_parent->second.children.erase(*txid);
+        }
         transaction->second.parent.reset();
+
+        if (restarting) {
+            for (auto child_txid : transaction->second.children) {
+                if (auto child = transactions.find(child_txid);
+                    child != transactions.end() && child->second.parent == *txid)
+                    child->second.parent.reset();
+            }
+            transaction->second.children.clear();
+        }
+
         if (transaction->second.children.empty())
             transactions.erase(transaction);
     }
@@ -185,8 +182,7 @@ void TransactionTracker::end_transaction(const Event& event)
 void TransactionTracker::end_transaction(uint64_t txid)
 {
     auto transaction = transactions.find(txid);
-    std::set<uint64_t> visited;
-    if (!transaction_complete(txid, visited))
+    if (!transaction_complete(txid))
         return;
 
     ended_transactions.erase(txid);

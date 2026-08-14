@@ -83,3 +83,17 @@
 840 reparented_root_b txid=91u
 850 end_transaction txid=91u
 860 end_transaction txid=90u
+870 start_transaction txid=100u
+880 restarted_parent_a txid=100u
+890 start_transaction txid=101u parent=100u
+900 end_transaction txid=100u
+910 start_transaction txid=100u
+920 restarted_parent_b txid=100u
+930 end_transaction txid=100u
+940 end_transaction txid=101u
+950 start_transaction txid=110u parent=111u
+960 start_transaction txid=111u parent=110u
+970 cycle_a txid=110u
+980 cycle_b txid=111u
+990 end_transaction txid=110u
+1000 end_transaction txid=111u

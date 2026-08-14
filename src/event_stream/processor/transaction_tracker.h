@@ -34,8 +34,7 @@ struct TransactionTracker
 
 private:
     void end_transaction(uint64_t txid);
-    bool transaction_complete(uint64_t txid, std::set<uint64_t>& visited) const;
-    bool transaction_complete(uint64_t txid, uint64_t ending_txid, std::set<uint64_t>& visited) const;
+    bool transaction_complete(uint64_t txid, std::optional<uint64_t> ending_txid = {}) const;
 
     std::optional<uint32_t> txid_definition_id;
     std::optional<uint32_t> parent_definition_id;

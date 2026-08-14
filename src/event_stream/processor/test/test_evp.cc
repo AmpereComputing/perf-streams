@@ -1006,6 +1006,36 @@ rel_repeat.sum_latency     30
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedFinalizesRestartedParentWithoutStaleChildren)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n restarted restarted_parent_a "
+                        "restarted_parent_b +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(restarted.count           1
+restarted.max_avg_latency 40
+restarted.max_latency     40
+restarted.min_latency     40
+restarted.stdev           0
+restarted.sum_latency     40
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedFinalizesCompletedCycle)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n cycle cycle_a cycle_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(cycle.count           1
+cycle.max_avg_latency 10
+cycle.max_latency     10
+cycle.min_latency     10
+cycle.stdev           0
+cycle.sum_latency     10
+)";
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, LatencyIncludeRelatedRejectsKeys)
 {
     auto output = run_expecting_error(fmt::format(
