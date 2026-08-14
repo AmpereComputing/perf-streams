@@ -52,8 +52,8 @@ std::optional<uint64_t> TransactionTracker::event_txid(const Event& event) const
 
 std::optional<uint64_t> TransactionTracker::transaction_parent(uint64_t txid) const
 {
-    if (auto parent = transaction_parents.find(txid); parent != transaction_parents.end())
-        return parent->second;
+    if (auto transaction = transactions.find(txid); transaction != transactions.end())
+        return transaction->second.parent;
 
     return {};
 }
@@ -80,7 +80,12 @@ void TransactionTracker::update(const Event& event)
         return;
 
     auto txid = event_txid(event);
-    if (!txid || !parent_definition_id)
+    if (!txid)
+        return;
+
+    ended_transactions.erase(*txid);
+
+    if (!parent_definition_id)
         return;
 
     for (const auto& value : event.values()) {
@@ -89,11 +94,15 @@ void TransactionTracker::update(const Event& event)
 
         switch (value.values_case()) {
         case event_stream_proto::Value::kUintValue:
-            transaction_parents[*txid] = value.uint_value();
+            transactions[*txid].parent = value.uint_value();
+            transactions[value.uint_value()].children.insert(*txid);
             return;
         case event_stream_proto::Value::kIntValue:
-            if (value.int_value() >= 0)
-                transaction_parents[*txid] = static_cast<uint64_t>(value.int_value());
+            if (value.int_value() >= 0) {
+                auto parent_txid = static_cast<uint64_t>(value.int_value());
+                transactions[*txid].parent = parent_txid;
+                transactions[parent_txid].children.insert(*txid);
+            }
             return;
         default:
             return;
@@ -106,8 +115,42 @@ void TransactionTracker::end_transaction(const Event& event)
     if (!end_transaction_definition_id || event.definition_id() != *end_transaction_definition_id)
         return;
 
-    if (auto txid = event_txid(event); txid)
-        transaction_parents.erase(*txid);
+    if (auto txid = event_txid(event); txid) {
+        ended_transactions.insert(*txid);
+        end_transaction(*txid);
+    }
+}
+
+void TransactionTracker::end_transaction(uint64_t txid)
+{
+    auto transaction = transactions.find(txid);
+    if (!ended_transactions.contains(txid))
+        return;
+    if (transaction != transactions.end()) {
+        for (auto child_txid : transaction->second.children) {
+            if (!ended_transactions.contains(child_txid))
+                return;
+        }
+    }
+
+    ended_transactions.erase(txid);
+    if (transaction == transactions.end())
+        return;
+
+    auto parent_txid = transaction->second.parent;
+    transactions.erase(transaction);
+    if (!parent_txid)
+        return;
+
+    auto parent = transactions.find(*parent_txid);
+    if (parent == transactions.end())
+        return;
+
+    parent->second.children.erase(txid);
+    if (parent->second.children.empty() && !parent->second.parent && !ended_transactions.contains(*parent_txid))
+        transactions.erase(parent);
+    else
+        end_transaction(*parent_txid);
 }
 
 bool TransactionTracker::should_enable_event(uint32_t event_id) const

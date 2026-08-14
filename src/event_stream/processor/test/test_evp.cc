@@ -825,6 +825,22 @@ gg.sum_latency     10
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedRetainsEndedIntermediateTransaction)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n ooo out_of_order_grandparent "
+                        "out_of_order_grandchild +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(ooo.count           1
+ooo.max_avg_latency 20
+ooo.max_latency     20
+ooo.min_latency     20
+ooo.stdev           0
+ooo.sum_latency     20
+)";
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, LatencyIncludeRelatedExcludesSiblings)
 {
     auto output = run(fmt::format("--es {} +latency --include-related -n sib sibling_a sibling_b +summarize",
@@ -1123,6 +1139,14 @@ end_transaction txid=1 parent=None
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, PythonTransactionQueriesRetainEndedIntermediateTransaction)
+{
+    auto output = run(fmt::format(
+        "--es {} +python {}", build_es("transaction_out_of_order_end.in"), config("transactions_out_of_order_end.py")));
+
+    EXPECT_EQ(output, "probe_after_middle_end parent_3=2 root_3=True related_1_3=True\n");
+}
+
 TEST_F(EVPTest, PythonTransactionQueriesBoundCyclicParents)
 {
     auto output =
@@ -1131,6 +1155,7 @@ TEST_F(EVPTest, PythonTransactionQueriesBoundCyclicParents)
     const auto* expected = R"(probe_self parent_1=1 self_ancestor=True unrelated_99=False
 probe_parent_child parent_1=2 parent_2=1 root_2=True cycle_1_2=True related_1_2=True
 probe_cycle parent_3=4 parent_4=3 ancestor_4_3=True ancestor_3_4=True unrelated_99_4=False
+probe_after_cycle_end parent_3=None parent_4=None related_3_4=False
 )";
 
     EXPECT_EQ(output, expected);
@@ -1142,6 +1167,16 @@ TEST_F(EVPTest, PythonTransactionQueriesRequireOptIn)
         fmt::format("--es {} +python {}", build_es("transaction_queries.in"), config("transactions_no_require.py")));
 
     EXPECT_THAT(output, ::testing::HasSubstr("evp transaction queries require evp.require_transactions()"));
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesRejectLateOptIn)
+{
+    auto output = run_expecting_error(
+        fmt::format("--es {} +python {}", build_es("transaction_queries.in"), config("transactions_late_require.py")));
+
+    EXPECT_THAT(
+        output,
+        ::testing::HasSubstr("evp.require_transactions() must be called while the plugin script is being constructed"));
 }
 
 TEST_F(EVPTest, TestVariables)

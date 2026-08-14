@@ -6,7 +6,6 @@
 #include "event_stream/processor/processor_ifc.h"
 #include "event_stream/processor/transaction_tracker.h"
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <list>
@@ -77,6 +76,9 @@ public:
     void py_end_simulation(PyObject* func) { end_simulation_functions.push_back(func); }
     void py_require_transactions() { transactions_required = true; }
     bool py_transactions_required() const { return transactions_required; }
+    void enter_callback() { callback_depth++; }
+    void exit_callback() { callback_depth--; }
+    bool in_callback() const { return callback_depth != 0; }
 
     ProcessorIfc* get_proc_ifc() { return &proc_ifc; }
 
@@ -89,6 +91,17 @@ private:
     std::list<PyObject*> collect_functions;
     std::list<PyObject*> end_simulation_functions;
     bool transactions_required{false};
+    unsigned callback_depth{0};
+};
+
+class PythonCallbackScope
+{
+public:
+    explicit PythonCallbackScope(PythonPluginHelper& helper) : helper{helper} { helper.enter_callback(); }
+    ~PythonCallbackScope() { helper.exit_callback(); }
+
+private:
+    PythonPluginHelper& helper;
 };
 
 static PythonPluginHelper* python_plugin_helper = nullptr;
@@ -256,8 +269,26 @@ static bool py_check_transactions_required()
     return false;
 }
 
+static TransactionTracker* py_transactions()
+{
+    if (!py_check_transactions_required())
+        return nullptr;
+
+    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
+    if (!transactions)
+        PyErr_SetString(PyExc_RuntimeError, "evp transaction tracking is unavailable");
+
+    return transactions;
+}
+
 static PyObject* evp_require_transactions(PyObject* self, PyObject* args)
 {
+    if (python_plugin_helper->in_callback()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "evp.require_transactions() must be called while the plugin script is being constructed");
+        return nullptr;
+    }
+
     python_plugin_helper->py_require_transactions();
     Py_RETURN_NONE;
 }
@@ -418,7 +449,8 @@ static PyObject* evp_event_txid(PyObject* self, PyObject* args)
 
     if (!PyArg_ParseTuple(args, "O!:event_txid", &EventObjectType, &event))
         return nullptr;
-    if (!py_check_transactions_required())
+    auto* transactions = py_transactions();
+    if (!transactions)
         return nullptr;
 
     const auto* proto_event = reinterpret_cast<EventObject*>(event)->_tmp_proto;
@@ -427,8 +459,6 @@ static PyObject* evp_event_txid(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
-    assert(transactions);
     if (auto txid = transactions->event_txid(*proto_event); txid)
         return PyLong_FromUnsignedLongLong(*txid);
 
@@ -441,11 +471,10 @@ static PyObject* evp_transaction_parent(PyObject* self, PyObject* args)
 
     if (!PyArg_ParseTuple(args, "K:transaction_parent", &txid))
         return nullptr;
-    if (!py_check_transactions_required())
+    auto* transactions = py_transactions();
+    if (!transactions)
         return nullptr;
 
-    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
-    assert(transactions);
     if (auto parent = transactions->transaction_parent(txid); parent)
         return PyLong_FromUnsignedLongLong(*parent);
 
@@ -459,11 +488,10 @@ static PyObject* evp_is_ancestor(PyObject* self, PyObject* args)
 
     if (!PyArg_ParseTuple(args, "KK:is_ancestor", &ancestor_txid, &descendant_txid))
         return nullptr;
-    if (!py_check_transactions_required())
+    auto* transactions = py_transactions();
+    if (!transactions)
         return nullptr;
 
-    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
-    assert(transactions);
     if (transactions->is_ancestor(ancestor_txid, descendant_txid))
         Py_RETURN_TRUE;
 
@@ -477,11 +505,10 @@ static PyObject* evp_is_related(PyObject* self, PyObject* args)
 
     if (!PyArg_ParseTuple(args, "KK:is_related", &txid_a, &txid_b))
         return nullptr;
-    if (!py_check_transactions_required())
+    auto* transactions = py_transactions();
+    if (!transactions)
         return nullptr;
 
-    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
-    assert(transactions);
     if (transactions->is_related(txid_a, txid_b))
         Py_RETURN_TRUE;
 
@@ -597,6 +624,7 @@ void PythonPluginHelper::py_on(const std::string& trigger, PyObject* func)
 
         // Now we need to call the user's callback with the Event object.
         PyObject* arglist = Py_BuildValue("(O)", event);
+        PythonCallbackScope callback{*this};
         PyObject* result = PyObject_CallObject(func, arglist);
         if (!result)
             py_err(fmt::format("trigger \"{}\" function failed", trigger));
@@ -683,6 +711,7 @@ void PythonPluginHelper::collect(MetricSeries& metrics, uint64_t trigger_time)
         Py_INCREF(func);
         Py_INCREF(args);
 
+        PythonCallbackScope callback{*this};
         PyObject* result = PyObject_CallObject(func, args);
 
         if (!result)
@@ -753,6 +782,7 @@ void PythonPluginHelper::end_simulation()
         auto* func = end_simulation_functions.front();
         end_simulation_functions.pop_front();
 
+        PythonCallbackScope callback{*this};
         PyObject* result = PyObject_CallObject(func, no_args);
         if (!result)
             py_err("end_simulation call failed");

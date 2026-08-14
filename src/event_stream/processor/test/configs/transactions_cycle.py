@@ -36,6 +36,14 @@ def probe_cycle(event):
     )
 
 
+def probe_after_cycle_end(event):
+    print(
+        f"{event.name} parent_3={evp.transaction_parent(3)} "
+        f"parent_4={evp.transaction_parent(4)} related_3_4={evp.is_related(3, 4)}"
+    )
+
+
 evp.on("probe_self", probe_self)
 evp.on("probe_parent_child", probe_parent_child)
 evp.on("probe_cycle", probe_cycle)
+evp.on("probe_after_cycle_end", probe_after_cycle_end)

@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <set>
 
 namespace perf_streams::event_stream::processor {
 
@@ -31,11 +32,20 @@ struct TransactionTracker
     bool is_related(uint64_t txid_a, uint64_t txid_b) const;
 
 private:
+    void end_transaction(uint64_t txid);
+
     std::optional<uint32_t> txid_definition_id;
     std::optional<uint32_t> parent_definition_id;
     std::optional<uint32_t> start_transaction_definition_id;
     std::optional<uint32_t> end_transaction_definition_id;
-    std::map<uint64_t, uint64_t> transaction_parents;
+    struct Transaction
+    {
+        std::optional<uint64_t> parent;
+        std::set<uint64_t> children;
+    };
+
+    std::map<uint64_t, Transaction> transactions;
+    std::set<uint64_t> ended_transactions;
 };
 
 } // namespace perf_streams::event_stream::processor

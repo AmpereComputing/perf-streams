@@ -6,3 +6,6 @@
 50 start_transaction txid=3u parent=4u
 60 start_transaction txid=4u parent=3u
 70 probe_cycle txid=4u
+80 end_transaction txid=3u
+90 end_transaction txid=4u
+100 probe_after_cycle_end txid=4u

@@ -45,3 +45,11 @@
 460 end_transaction txid=41u
 470 end_transaction txid=42u
 480 end_transaction txid=40u
+490 start_transaction txid=50u
+500 start_transaction txid=51u parent=50u
+510 start_transaction txid=52u parent=51u
+520 out_of_order_grandparent txid=50u
+530 end_transaction txid=51u
+540 out_of_order_grandchild txid=52u
+550 end_transaction txid=52u
+560 end_transaction txid=50u
