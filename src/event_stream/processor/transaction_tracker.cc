@@ -181,28 +181,33 @@ void TransactionTracker::end_transaction(const Event& event)
 
 void TransactionTracker::end_transaction(uint64_t txid)
 {
-    auto transaction = transactions.find(txid);
-    if (!transaction_complete(txid))
-        return;
+    for (auto transaction = transactions.find(txid); transaction != transactions.end();
+         transaction = transactions.find(txid))
+    {
+        if (!transaction_complete(txid))
+            return;
+
+        ended_transactions.erase(txid);
+
+        auto parent_txid = transaction->second.parent;
+        transactions.erase(transaction);
+        if (!parent_txid)
+            return;
+
+        auto parent = transactions.find(*parent_txid);
+        if (parent == transactions.end())
+            return;
+
+        parent->second.children.erase(txid);
+        if (parent->second.children.empty() && !parent->second.parent && !ended_transactions.contains(*parent_txid)) {
+            transactions.erase(parent);
+            return;
+        }
+
+        txid = *parent_txid;
+    }
 
     ended_transactions.erase(txid);
-    if (transaction == transactions.end())
-        return;
-
-    auto parent_txid = transaction->second.parent;
-    transactions.erase(transaction);
-    if (!parent_txid)
-        return;
-
-    auto parent = transactions.find(*parent_txid);
-    if (parent == transactions.end())
-        return;
-
-    parent->second.children.erase(txid);
-    if (parent->second.children.empty() && !parent->second.parent && !ended_transactions.contains(*parent_txid))
-        transactions.erase(parent);
-    else
-        end_transaction(*parent_txid);
 }
 
 bool TransactionTracker::should_enable_event(uint32_t event_id) const

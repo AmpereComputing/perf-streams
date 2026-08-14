@@ -872,6 +872,41 @@ deep_ooo.sum_latency     30
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedFinalizesDeepTransactionChain)
+{
+    constexpr auto transaction_count = 4096u;
+    auto input = test_file("deep_transaction_chain.in");
+    auto event_stream = test_file("deep_transaction_chain.es");
+
+    {
+        std::ofstream output{input};
+        ASSERT_TRUE(output);
+        output << "0 start_transaction txid=1u\n10 deep_chain_a txid=1u\n";
+        for (auto txid = 2u; txid <= transaction_count; ++txid)
+            output << fmt::format("{} start_transaction txid={}u parent={}u\n", txid * 10, txid, txid - 1);
+
+        output << fmt::format("{} deep_chain_b txid=1u\n", (transaction_count + 1) * 10);
+        for (auto txid = 1u; txid <= transaction_count; ++txid)
+            output << fmt::format("{} end_transaction txid={}u\n", (transaction_count + 1 + txid) * 10, txid);
+    }
+
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n deep_chain deep_chain_a deep_chain_b "
+                        "+summarize",
+                        perf_streams::event_stream::testing::build_es(input, event_stream)));
+    std::remove(input.c_str());
+    std::remove(event_stream.c_str());
+
+    const auto* expected = R"(deep_chain.count           1
+deep_chain.max_avg_latency 40960
+deep_chain.max_latency     40960
+deep_chain.min_latency     40960
+deep_chain.stdev           0
+deep_chain.sum_latency     40960
+)";
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, LatencyIncludeRelatedFinalizesAfterReparenting)
 {
     auto output =
