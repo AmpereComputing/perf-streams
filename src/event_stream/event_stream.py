@@ -4,9 +4,10 @@
 """Event Stream reader utilities."""
 
 import json
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from enum import Enum
+from typing import cast
 
 import perf_streams.event_stream_pb2 as es_proto
 from perf_streams.extensions.transactions import Transactions
@@ -99,21 +100,21 @@ class Transaction:
     DEFAULT_END_NAME = "end_transaction"  # Event which "ends" a transaction
     DEFAULT_PARENT_NAME = "parent"  # Field which indicates what the parent is (on start event)
 
-    def __init__(self, txid: int):
+    def __init__(self, txid: int) -> None:
         """Create a Transaction with the specified txid."""
         self.events: list[es_proto.Event] = []
-        self.values = {}
+        self.values: dict[str, int | str] = {}
         self.children: list[Transaction] = []
         self.txid = txid
         self.parent: Transaction | None = None
         self.closed = False
 
-    def add_child(self, transaction: "Transaction"):
+    def add_child(self, transaction: "Transaction") -> None:
         """Add a transaction as a child."""
         self.children.append(transaction)
         transaction.parent = self
 
-    def add_event(self, event: es_proto.Event, value_fields: list[str] | None = None):
+    def add_event(self, event: es_proto.Event, value_fields: list[str] | None = None) -> None:
         """Add an event to this transaction."""
         self.events.append(event)
 
@@ -122,15 +123,13 @@ class Transaction:
                 if field in event.data:
                     self.values[field] = event.data[field]
 
-    def all_events(self, *, include_children: bool = False):
+    def all_events(self, *, include_children: bool = False) -> Iterator[es_proto.Event]:
         """Generate events from this and all child transactions."""
-        for event in self.events:
-            yield event
+        yield from self.events
 
         if include_children:
             for transaction in self.children:
-                for event in transaction.all_events(include_children):
-                    yield event
+                yield from transaction.all_events(include_children=include_children)
 
 
 class Enumeration(dict[int, str]):
@@ -448,7 +447,7 @@ class _EventStreamWriterBase(ProtobufStreamWriter):
 
         resolved_event_type = self._resolve_event_type(event_type)
         values = values or {}
-        event_values = {}
+        event_values: dict[int, tuple[ValueType, EventScalarValue]] = {}
         for value_type, raw_value in values.items():
             resolved_type = self._resolve_value_type(value_type)
             event_values[resolved_type.id] = (resolved_type, raw_value)
@@ -459,7 +458,7 @@ class _EventStreamWriterBase(ProtobufStreamWriter):
         event_proto.id = self._next_event_id
         self._next_event_id += 1
 
-        event_data = {}
+        event_data: dict[str, EventScalarValue] = {}
         for value_type, raw_value in event_values.values():
             value_proto = event_proto.values.add()
             value_proto.definition_id = value_type.id
@@ -691,26 +690,27 @@ class EventStreamReader(ProtobufStreamReader):
             Transaction: transaction with attached events
         """
         events = set(events)
-        value_fields = value_fields or []
-        transactions_by_id = {}
-        parent_transactions = {}
+        value_fields = list(value_fields or [])
+        transactions_by_id: dict[int, Transaction] = {}
+        parent_transactions: dict[int, Transaction] = {}
 
         for event in self.read_events(events):
             txid = event.data.get(txid_field)
             if txid is None:
                 continue
 
-            if txid not in transactions_by_id:
-                transactions_by_id[txid] = Transaction(txid)
+            transaction_id = cast("int", txid)
+            if transaction_id not in transactions_by_id:
+                transactions_by_id[transaction_id] = Transaction(transaction_id)
 
-            transaction = transactions_by_id[txid]
+            transaction = transactions_by_id[transaction_id]
             transaction.add_event(event, value_fields=value_fields)
 
             if parent_field in event.data:
-                parent_id = event.data[parent_field]
+                parent_id = cast("int", event.data[parent_field])
                 if parent_id in transactions_by_id:
                     parent = transactions_by_id[parent_id]
-                    parent_transactions[txid] = parent
+                    parent_transactions[transaction_id] = parent
                     parent.add_child(transaction)
 
         for transaction in transactions_by_id.values():

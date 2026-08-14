@@ -4,6 +4,7 @@ PYTHON:=python3
 CLANG_FORMAT:=clang-format
 CLANG_TIDY:=run-clang-tidy
 RUFF:=ruff
+MYPY:=mypy
 HATCH:=hatch
 GCOVR:=gcovr
 
@@ -171,11 +172,16 @@ python-lint: .require-clean
 python-lint-check:
 	$(FIND_SRCS) $(PY_FILES) | xargs -r $(RUFF) check
 
+.PHONY: mypy-check
+mypy-check:
+	$(MYPY)
+
 .PHONY: .lint
 .lint:
 	$(MAKE) .clang-format
 	$(MAKE) .python-lint
 	$(MAKE) .python-format
+	$(MAKE) mypy-check
 
 .PHONY: lint
 lint: .require-clean
@@ -195,6 +201,7 @@ check:
 	$(MAKE) clang-format-check
 	$(MAKE) python-lint-check
 	$(MAKE) python-format-check
+	$(MAKE) mypy-check
 
 .PHONY: check-all
 check-all: check

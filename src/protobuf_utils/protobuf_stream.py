@@ -5,16 +5,43 @@
 
 import subprocess
 from contextlib import suppress
+from importlib import import_module
 from io import DEFAULT_BUFFER_SIZE, IOBase
 from os import cpu_count, path
+from typing import Protocol, cast
 
 try:
-    import lzma
+    lzma_module = import_module("lzma")
 except ImportError:
-    from backports import lzma
+    lzma_module = import_module("backports.lzma")
 
 from google.protobuf.message import Message
-from perf_streams.protobuf_utils import SIZE_STRUCT, is32, read_header_from, write_delimited_to, write_header_to
+from perf_streams.protobuf_utils import (
+    SIZE_STRUCT,
+    Reader,
+    Writer,
+    is32,
+    read_header_from,
+    write_delimited_to,
+    write_header_to,
+)
+
+
+class _ReadableBinaryFile(Reader, Protocol):
+    """Binary reader with lifecycle operations used by ProtobufStreamReader."""
+
+    def close(self) -> None:
+        """Close the stream."""
+
+
+class _WritableBinaryFile(Writer, Protocol):
+    """Binary writer with lifecycle operations used by ProtobufStreamWriter."""
+
+    def flush(self) -> None:
+        """Flush buffered data."""
+
+    def close(self) -> None:
+        """Close the stream."""
 
 
 class ProtobufStreamReader:
@@ -23,8 +50,9 @@ class ProtobufStreamReader:
     def __init__(self, filename: str | IOBase, expected_magic: int, max_version: int) -> None:
         """Initialize protobuf stream reader at file, checking magic/version."""
         self._file_process = None
+        self.file: _ReadableBinaryFile
         if isinstance(filename, IOBase):
-            self.file = filename
+            self.file = cast("_ReadableBinaryFile", filename)
             self.close_when_done = False
         elif filename.endswith(".xz"):
             if not path.exists(filename):
@@ -37,12 +65,13 @@ class ProtobufStreamReader:
                     stderr=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                 )
-                self.file = self._file_process.stdout
-                if self.file is None:
+                output = self._file_process.stdout
+                if output is None:
                     raise RuntimeError("xz decompressor did not provide stdout")
+                self.file = output
             except FileNotFoundError:
                 self._file_process = None
-                self.file = lzma.open(filename, "rb")
+                self.file = lzma_module.open(filename, "rb")
             self.close_when_done = True
         else:
             self.file = open(filename, "rb")  # noqa: SIM115
@@ -163,8 +192,9 @@ class ProtobufStreamWriter:
 
     def __init__(self, filename: str, magic: int, version: int) -> None:
         """Initialize protobuf stream writer at file with magic/version."""
+        self.file: _WritableBinaryFile
         if filename.endswith(".xz"):
-            self.file = lzma.open(filename, "wb")
+            self.file = lzma_module.open(filename, "wb")
         else:
             self.file = open(filename, "wb")  # noqa: SIM115
 

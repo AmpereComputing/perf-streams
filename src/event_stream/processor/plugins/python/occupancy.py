@@ -102,10 +102,11 @@ class Occupancy(OccupancyTracker):
         else:
             super()._deallocate(event)
 
-    def _update_occupancy(self, event: Event, inc: int, name: str | None = None) -> None:
+    def _update_occupancy(self, event: Event, inc: int, name: str | None = None) -> tuple[int, int, int | float]:
         name = self._rename(name or event.name)
         occupancy, _duration, average = super()._update_occupancy(event, inc, name=name)
         self._record(event.time, name, occupancy, average)
+        return occupancy, _duration, average
 
     def _rename(self, event_name: str) -> str:
         return self.rename(event_name) if self.rename is not None else event_name
@@ -140,11 +141,12 @@ class OccupancyHistogram(OccupancyTracker):
         super().__init__(alloc_event, dealloc_event)
         evp.collect(self.metrics)
 
-    def _update_occupancy(self, event: Event, inc: int, name: str | None = None) -> None:
+    def _update_occupancy(self, event: Event, inc: int, name: str | None = None) -> tuple[int, int, int | float]:
         name = name or ".".join(event.name.split(".")[:-1])
         prev_occupancy = self.entries[name]
-        _occupancy, duration, _average = super()._update_occupancy(event, inc, name=name)
+        occupancy, duration, average = super()._update_occupancy(event, inc, name=name)
         self._histogram[name][prev_occupancy] += duration
+        return occupancy, duration, average
 
     def adjust_buckets(self, values: dict[int, int]) -> dict[int, int]:
         """Apply optional histogram bucketing to occupancy counts."""

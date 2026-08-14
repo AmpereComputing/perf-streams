@@ -22,6 +22,7 @@ test = [
     "coverage"
 ]
 lint = [
+    "mypy",
     "ruff"
 ]
 all = [
@@ -150,3 +151,21 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.12"
+explicit_package_bases = true
+files = [
+    "src/event_stream/event_stream.py",
+    "src/event_stream/extensions/transactions.py",
+    "src/event_stream/processor/plugins/python/__init__.py",
+    "src/event_stream/processor/plugins/python/event_histogram.py",
+    "src/event_stream/processor/plugins/python/histogram.py",
+    "src/event_stream/processor/plugins/python/occupancy.py",
+    "src/event_stream/processor/plugins/python/transaction_tracker.py",
+    "src/instruction_stream/instruction_stream.py",
+    "src/protobuf_utils/protobuf_stream.py",
+    "src/protobuf_utils/protobuf_utils.py",
+]
+follow_imports = "skip"
+ignore_missing_imports = true
