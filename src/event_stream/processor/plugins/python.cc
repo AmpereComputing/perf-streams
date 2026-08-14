@@ -4,6 +4,7 @@
 #include "event_stream/event_stream.pb.h"
 #include "event_stream/processor/metric_table.h"
 #include "event_stream/processor/processor_ifc.h"
+#include "event_stream/processor/transaction_tracker.h"
 
 #include <cassert>
 #include <cstddef>
@@ -426,7 +427,9 @@ static PyObject* evp_event_txid(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    if (auto txid = python_plugin_helper->get_proc_ifc()->event_txid(*proto_event); txid)
+    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
+    assert(transactions);
+    if (auto txid = transactions->event_txid(*proto_event); txid)
         return PyLong_FromUnsignedLongLong(*txid);
 
     Py_RETURN_NONE;
@@ -441,7 +444,9 @@ static PyObject* evp_transaction_parent(PyObject* self, PyObject* args)
     if (!py_check_transactions_required())
         return nullptr;
 
-    if (auto parent = python_plugin_helper->get_proc_ifc()->transaction_parent(txid); parent)
+    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
+    assert(transactions);
+    if (auto parent = transactions->transaction_parent(txid); parent)
         return PyLong_FromUnsignedLongLong(*parent);
 
     Py_RETURN_NONE;
@@ -457,7 +462,9 @@ static PyObject* evp_is_ancestor(PyObject* self, PyObject* args)
     if (!py_check_transactions_required())
         return nullptr;
 
-    if (python_plugin_helper->get_proc_ifc()->is_ancestor(ancestor_txid, descendant_txid))
+    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
+    assert(transactions);
+    if (transactions->is_ancestor(ancestor_txid, descendant_txid))
         Py_RETURN_TRUE;
 
     Py_RETURN_FALSE;
@@ -473,7 +480,9 @@ static PyObject* evp_is_related(PyObject* self, PyObject* args)
     if (!py_check_transactions_required())
         return nullptr;
 
-    if (python_plugin_helper->get_proc_ifc()->is_related(txid_a, txid_b))
+    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
+    assert(transactions);
+    if (transactions->is_related(txid_a, txid_b))
         Py_RETURN_TRUE;
 
     Py_RETURN_FALSE;

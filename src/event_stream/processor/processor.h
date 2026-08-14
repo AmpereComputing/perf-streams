@@ -58,6 +58,12 @@ public:
     {
         auto& p = plugins.emplace_back(std::move(plugin));
         auto phases = p->phases();
+        if (phases.contains(Plugin::Phase::TRANSACTIONS) && !transaction_tracker) {
+            transaction_tracker = std::make_unique<TransactionTracker>();
+            for (const auto& definition : definitions)
+                transaction_tracker->save_definition(definition.second);
+        }
+
         for (auto phase : phases)
             plugins_by_phase[static_cast<size_t>(phase)].emplace_back(p.get());
 
@@ -91,10 +97,7 @@ public:
 
     uint64_t get_current_time() const override { return current_time; }
     uint64_t get_first_event_time() const override { return first_event_time; }
-    std::optional<uint64_t> event_txid(const Event& event) const override;
-    std::optional<uint64_t> transaction_parent(uint64_t txid) const override;
-    bool is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const override;
-    bool is_related(uint64_t txid_a, uint64_t txid_b) const override;
+    TransactionTracker* transactions() override { return transaction_tracker.get(); }
 
     void count(Plugin* plugin,
                const std::string& counter_spec,
@@ -161,7 +164,7 @@ private:
     std::vector<std::unique_ptr<Plugin>> plugins;
     std::array<std::vector<Plugin*>, static_cast<size_t>(Plugin::Phase::SIZE)> plugins_by_phase;
 
-    TransactionTracker transaction_tracker;
+    std::unique_ptr<TransactionTracker> transaction_tracker;
 
     MetricTableTimeSeries ts;
 
@@ -201,8 +204,6 @@ private:
     void run_time_based_actions();
     void ensure_event_record();
     void handle_event(const Event& event);
-    void update_transaction_tracking(const Event& event);
-    void end_transaction_tracking(const Event& event);
     bool should_enable_event_for_transactions(uint32_t event_id) const;
 
     void enable_active_events();

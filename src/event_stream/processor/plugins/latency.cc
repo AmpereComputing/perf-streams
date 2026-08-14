@@ -8,6 +8,7 @@
 #include "event_stream/processor/metric_table.h"
 #include "event_stream/processor/plugin.h"
 #include "event_stream/processor/processor_ifc.h"
+#include "event_stream/processor/transaction_tracker.h"
 #include "event_stream/processor/utils.h"
 
 #include <algorithm>
@@ -296,7 +297,8 @@ void Latency::update_latency(Counter* counter, const event_stream_proto::Event& 
 
 void Latency::update_related_latency(const event_stream_proto::Event& event, int idx)
 {
-    auto txid = event_txid(event);
+    auto* transactions = proc_ifc.transactions();
+    auto txid = transactions->event_txid(event);
     if (!txid)
         return;
 
@@ -307,7 +309,7 @@ void Latency::update_related_latency(const event_stream_proto::Event& event, int
 
     for (auto& tracker_entry : trackers) {
         auto& tracker = tracker_entry.second;
-        if (tracker.last_event_txid && is_related(*tracker.last_event_txid, *txid))
+        if (tracker.last_event_txid && transactions->is_related(*tracker.last_event_txid, *txid))
             record_latency(tracker, event.time(), idx, true, *txid);
     }
 }
@@ -315,10 +317,7 @@ void Latency::update_related_latency(const event_stream_proto::Event& event, int
 void Latency::record_latency_for_key(
     uint64_t key, const event_stream_proto::Event& event, int idx, bool require_sequence, std::optional<uint64_t> txid)
 {
-    auto tracker_iter = trackers.find(key);
-    if (tracker_iter == trackers.end())
-        std::tie(tracker_iter, std::ignore) = trackers.insert({key, LatencyTracker(event.time(), events.size())});
-
+    auto tracker_iter = trackers.try_emplace(key, event.time(), events.size()).first;
     record_latency(tracker_iter->second, event.time(), idx, require_sequence, txid);
 
     if (!tracking_transactions && static_cast<size_t>(idx + 1) == events.size())

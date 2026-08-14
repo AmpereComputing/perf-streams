@@ -295,13 +295,13 @@ void Processor::skip(uint64_t max_time, CounterSet* including)
             for (auto it = counter_range.first; it != counter_range.second; ++it)
                 it->second->increment(event);
         }
-        if (phases.contains(Plugin::Phase::TRANSACTIONS))
-            update_transaction_tracking(event);
+        if (transaction_tracker)
+            transaction_tracker->update(event);
 
         // reprocess record only if stopped skipping on time
         if (!max_time || skipping) {
-            if (phases.contains(Plugin::Phase::TRANSACTIONS))
-                end_transaction_tracking(event);
+            if (transaction_tracker)
+                transaction_tracker->end_transaction(event);
             record.Clear();
         }
     } while (skipping && get_next_record());
@@ -485,7 +485,8 @@ void Processor::save_definition(const Definition& definition)
 {
     definitions[definition.id()] = definition;
     definition_index[definition.name()] = definition.id();
-    transaction_tracker.save_definition(definition);
+    if (transaction_tracker)
+        transaction_tracker->save_definition(definition);
 }
 
 /** Save a Parameter away in our table.
@@ -541,8 +542,8 @@ void Processor::run_time_based_actions()
  */
 void Processor::handle_event(const Event& event)
 {
-    if (phases.contains(Plugin::Phase::TRANSACTIONS))
-        update_transaction_tracking(event);
+    if (transaction_tracker)
+        transaction_tracker->update(event);
 
     if (const auto& e = events[event.definition_id()]; e.state == EventState::ENABLED) {
         for (auto* counter : e.counters)
@@ -553,38 +554,8 @@ void Processor::handle_event(const Event& event)
             pp->process_event(event);
     }
 
-    if (phases.contains(Plugin::Phase::TRANSACTIONS))
-        end_transaction_tracking(event);
-}
-
-std::optional<uint64_t> Processor::event_txid(const Event& event) const
-{
-    return transaction_tracker.event_txid(event);
-}
-
-std::optional<uint64_t> Processor::transaction_parent(uint64_t txid) const
-{
-    return transaction_tracker.transaction_parent(txid);
-}
-
-bool Processor::is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const
-{
-    return transaction_tracker.is_ancestor(ancestor_txid, descendant_txid);
-}
-
-bool Processor::is_related(uint64_t txid_a, uint64_t txid_b) const
-{
-    return transaction_tracker.is_related(txid_a, txid_b);
-}
-
-void Processor::update_transaction_tracking(const Event& event)
-{
-    transaction_tracker.update(event);
-}
-
-void Processor::end_transaction_tracking(const Event& event)
-{
-    transaction_tracker.end_transaction(event);
+    if (transaction_tracker)
+        transaction_tracker->end_transaction(event);
 }
 
 /** Collect metrics.
@@ -658,7 +629,7 @@ void Processor::enable_active_events()
 
 bool Processor::should_enable_event_for_transactions(uint32_t event_id) const
 {
-    return phases.contains(Plugin::Phase::TRANSACTIONS) && transaction_tracker.should_enable_event(event_id);
+    return transaction_tracker && transaction_tracker->should_enable_event(event_id);
 }
 
 /** Called by a plugin to count a particular (possibly factored)
