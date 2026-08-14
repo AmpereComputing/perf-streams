@@ -59,3 +59,20 @@
 600 end_transaction txid=60u
 610 parent_end_b txid=61u
 620 end_transaction txid=61u
+630 start_transaction txid=70u
+640 deep_out_of_order_a txid=70u
+650 start_transaction txid=71u parent=70u
+660 start_transaction txid=72u parent=71u
+670 deep_out_of_order_b txid=72u
+680 end_transaction txid=71u
+690 end_transaction txid=70u
+700 end_transaction txid=72u
+710 start_transaction txid=80u
+720 reparented_a txid=80u
+730 start_transaction txid=81u parent=80u
+740 start_transaction txid=82u
+750 start_transaction txid=81u parent=82u
+760 reparented_b txid=80u
+770 end_transaction txid=80u
+780 end_transaction txid=81u
+790 end_transaction txid=82u

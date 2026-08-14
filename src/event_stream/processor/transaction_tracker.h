@@ -30,7 +30,6 @@ struct TransactionTracker
     std::optional<uint64_t> transaction_parent(uint64_t txid) const;
     bool is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const;
     bool is_related(uint64_t txid_a, uint64_t txid_b) const;
-    bool transaction_complete(uint64_t txid) const;
     bool transaction_complete_after_end(uint64_t txid, const Event& event) const;
 
 private:

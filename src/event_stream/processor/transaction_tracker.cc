@@ -74,12 +74,6 @@ bool TransactionTracker::is_related(uint64_t txid_a, uint64_t txid_b) const
     return txid_a == txid_b || is_ancestor(txid_a, txid_b) || is_ancestor(txid_b, txid_a);
 }
 
-bool TransactionTracker::transaction_complete(uint64_t txid) const
-{
-    std::set<uint64_t> visited;
-    return transaction_complete(txid, visited);
-}
-
 bool TransactionTracker::transaction_complete_after_end(uint64_t txid, const Event& event) const
 {
     auto ending_txid = event_txid(event);
@@ -93,7 +87,7 @@ bool TransactionTracker::transaction_complete_after_end(uint64_t txid, const Eve
 bool TransactionTracker::transaction_complete(uint64_t txid, std::set<uint64_t>& visited) const
 {
     if (!visited.insert(txid).second)
-        return false;
+        return true;
 
     if (!ended_transactions.contains(txid))
         return false;
@@ -141,6 +135,17 @@ void TransactionTracker::update(const Event& event)
 
     ended_transactions.erase(*txid);
 
+    auto set_parent = [this, txid](uint64_t parent_txid) {
+        auto& transaction = transactions[*txid];
+        if (transaction.parent) {
+            if (auto previous_parent = transactions.find(*transaction.parent); previous_parent != transactions.end())
+                previous_parent->second.children.erase(*txid);
+        }
+
+        transaction.parent = parent_txid;
+        transactions[parent_txid].children.insert(*txid);
+    };
+
     if (!parent_definition_id)
         return;
 
@@ -150,15 +155,11 @@ void TransactionTracker::update(const Event& event)
 
         switch (value.values_case()) {
         case event_stream_proto::Value::kUintValue:
-            transactions[*txid].parent = value.uint_value();
-            transactions[value.uint_value()].children.insert(*txid);
+            set_parent(value.uint_value());
             return;
         case event_stream_proto::Value::kIntValue:
-            if (value.int_value() >= 0) {
-                auto parent_txid = static_cast<uint64_t>(value.int_value());
-                transactions[*txid].parent = parent_txid;
-                transactions[parent_txid].children.insert(*txid);
-            }
+            if (value.int_value() >= 0)
+                set_parent(static_cast<uint64_t>(value.int_value()));
             return;
         default:
             return;
@@ -180,14 +181,9 @@ void TransactionTracker::end_transaction(const Event& event)
 void TransactionTracker::end_transaction(uint64_t txid)
 {
     auto transaction = transactions.find(txid);
-    if (!ended_transactions.contains(txid))
+    std::set<uint64_t> visited;
+    if (!transaction_complete(txid, visited))
         return;
-    if (transaction != transactions.end()) {
-        for (auto child_txid : transaction->second.children) {
-            if (!ended_transactions.contains(child_txid))
-                return;
-        }
-    }
 
     ended_transactions.erase(txid);
     if (transaction == transactions.end())

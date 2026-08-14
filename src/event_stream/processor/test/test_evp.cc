@@ -856,6 +856,38 @@ parent_end.sum_latency     30
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedFinalizesAfterDeepOutOfOrderEnd)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n deep_ooo deep_out_of_order_a "
+                        "deep_out_of_order_b +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(deep_ooo.count           1
+deep_ooo.max_avg_latency 30
+deep_ooo.max_latency     30
+deep_ooo.min_latency     30
+deep_ooo.stdev           0
+deep_ooo.sum_latency     30
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedFinalizesAfterReparenting)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n reparented reparented_a reparented_b "
+                        "+summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(reparented.count           1
+reparented.max_avg_latency 40
+reparented.max_latency     40
+reparented.min_latency     40
+reparented.stdev           0
+reparented.sum_latency     40
+)";
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, LatencyIncludeRelatedExcludesSiblings)
 {
     auto output = run(fmt::format("--es {} +latency --include-related -n sib sibling_a sibling_b +summarize",
