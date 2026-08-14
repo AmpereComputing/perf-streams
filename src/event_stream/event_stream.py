@@ -16,7 +16,7 @@ protobuf_es_magic = 0x53454250  # 0x50(P) 0x42(B) 0x45(E) 0x53(S)
 protobuf_es_version = 4  # synchronize with event_stream_proto.h
 MIN_VERSION_WITH_PRE_EVENT_DEFINITIONS = 2
 
-type JsonScalar = None | bool | int | float | str
+type JsonScalar = bool | int | float | str | None
 type JsonValue = JsonScalar | list[JsonValue] | tuple[JsonValue, ...] | dict[str, JsonValue]
 type EventConstructor = Callable[[es_proto.Event, "EventStreamReader"], "Event"]
 
