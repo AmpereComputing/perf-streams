@@ -76,3 +76,10 @@
 770 end_transaction txid=80u
 780 end_transaction txid=81u
 790 end_transaction txid=82u
+800 start_transaction txid=90u
+810 start_transaction txid=91u parent=90u
+820 reparented_root_a txid=90u
+830 start_transaction txid=91u
+840 reparented_root_b txid=91u
+850 end_transaction txid=91u
+860 end_transaction txid=90u

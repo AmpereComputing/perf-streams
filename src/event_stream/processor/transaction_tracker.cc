@@ -135,13 +135,17 @@ void TransactionTracker::update(const Event& event)
 
     ended_transactions.erase(*txid);
 
+    if (auto transaction = transactions.find(*txid); transaction != transactions.end() && transaction->second.parent) {
+        if (auto previous_parent = transactions.find(*transaction->second.parent);
+            previous_parent != transactions.end())
+            previous_parent->second.children.erase(*txid);
+        transaction->second.parent.reset();
+        if (transaction->second.children.empty())
+            transactions.erase(transaction);
+    }
+
     auto set_parent = [this, txid](uint64_t parent_txid) {
         auto& transaction = transactions[*txid];
-        if (transaction.parent) {
-            if (auto previous_parent = transactions.find(*transaction.parent); previous_parent != transactions.end())
-                previous_parent->second.children.erase(*txid);
-        }
-
         transaction.parent = parent_txid;
         transactions[parent_txid].children.insert(*txid);
     };

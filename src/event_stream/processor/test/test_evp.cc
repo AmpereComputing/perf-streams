@@ -888,6 +888,19 @@ reparented.sum_latency     40
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedReparentingToRootExcludesPreviousParent)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n reparented_root reparented_root_a "
+                        "reparented_root_b +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(reparented_root.count       0
+reparented_root.stdev       0
+reparented_root.sum_latency 0
+)";
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, LatencyIncludeRelatedExcludesSiblings)
 {
     auto output = run(fmt::format("--es {} +latency --include-related -n sib sibling_a sibling_b +summarize",

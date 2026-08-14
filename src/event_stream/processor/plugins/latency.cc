@@ -127,9 +127,9 @@ private:
     bool include_related{false};
     std::unordered_set<int> key_definitions;
     static std::string build_name(const std::vector<std::string>& events);
-    void update_latency(Counter * counter, const event_stream_proto::Event& event, int idx);
+    void update_latency(Counter*, const event_stream_proto::Event& event, int idx);
     void update_related_latency(const event_stream_proto::Event& event, int idx);
-    void end_transaction(Counter * counter, const event_stream_proto::Event& event);
+    void end_transaction(Counter*, const event_stream_proto::Event& event);
     void record_latency_for_key(uint64_t key,
                                 const event_stream_proto::Event& event,
                                 int idx,
@@ -284,7 +284,7 @@ void Latency::define_value(const Definition& value_def)
         key_definitions.emplace(value_def.id());
 }
 
-void Latency::update_latency(Counter* counter, const event_stream_proto::Event& event, int idx)
+void Latency::update_latency(Counter*, const event_stream_proto::Event& event, int idx)
 {
     if (include_related) {
         update_related_latency(event, idx);
@@ -359,7 +359,7 @@ Latency::TrackerIter Latency::finalize_latency(TrackerIter tracker_iter)
     return trackers.erase(tracker_iter);
 }
 
-void Latency::end_transaction(Counter* counter, const event_stream_proto::Event& event)
+void Latency::end_transaction(Counter*, const event_stream_proto::Event& event)
 {
     if (!include_related) {
         if (auto tracker_iter = get_tracker_by_key(event); tracker_iter != trackers.end())
