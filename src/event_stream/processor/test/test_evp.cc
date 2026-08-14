@@ -841,6 +841,21 @@ ooo.sum_latency     20
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedRetainsEndedParentTransaction)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n parent_end parent_end_a parent_end_b +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(parent_end.count           1
+parent_end.max_avg_latency 20
+parent_end.max_latency     20
+parent_end.min_latency     20
+parent_end.stdev           0
+parent_end.sum_latency     20
+)";
+    EXPECT_EQ(output, expected);
+}
+
 TEST_F(EVPTest, LatencyIncludeRelatedExcludesSiblings)
 {
     auto output = run(fmt::format("--es {} +latency --include-related -n sib sibling_a sibling_b +summarize",
@@ -1165,6 +1180,16 @@ TEST_F(EVPTest, PythonTransactionQueriesRequireOptIn)
 {
     auto output = run_expecting_error(
         fmt::format("--es {} +python {}", build_es("transaction_queries.in"), config("transactions_no_require.py")));
+
+    EXPECT_THAT(output, ::testing::HasSubstr("evp transaction queries require evp.require_transactions()"));
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesRequirePerPluginOptIn)
+{
+    auto output = run_expecting_error(fmt::format("--es {} +python {} +python {}",
+                                                  build_es("transaction_queries.in"),
+                                                  config("transactions.py"),
+                                                  config("transactions_no_require.py")));
 
     EXPECT_THAT(output, ::testing::HasSubstr("evp transaction queries require evp.require_transactions()"));
 }

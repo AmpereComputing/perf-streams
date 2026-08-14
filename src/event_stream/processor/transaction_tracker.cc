@@ -74,6 +74,32 @@ bool TransactionTracker::is_related(uint64_t txid_a, uint64_t txid_b) const
     return txid_a == txid_b || is_ancestor(txid_a, txid_b) || is_ancestor(txid_b, txid_a);
 }
 
+bool TransactionTracker::transaction_complete(uint64_t txid) const
+{
+    std::set<uint64_t> visited;
+    return transaction_complete(txid, visited);
+}
+
+bool TransactionTracker::transaction_complete(uint64_t txid, std::set<uint64_t>& visited) const
+{
+    if (!visited.insert(txid).second)
+        return false;
+
+    if (!ended_transactions.contains(txid))
+        return false;
+
+    auto transaction = transactions.find(txid);
+    if (transaction == transactions.end())
+        return true;
+
+    for (auto child_txid : transaction->second.children) {
+        if (!transaction_complete(child_txid, visited))
+            return false;
+    }
+
+    return true;
+}
+
 void TransactionTracker::update(const Event& event)
 {
     if (!start_transaction_definition_id || event.definition_id() != *start_transaction_definition_id)

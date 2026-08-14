@@ -140,10 +140,9 @@ private:
                         int idx,
                         bool require_sequence = false,
                         std::optional<uint64_t> txid = std::nullopt);
-    void finalize_latency(const TrackerIter& tracker);
+    TrackerIter finalize_latency(TrackerIter tracker);
     void aggregate_latency(LatencyTracker & tracker);
     std::optional<uint64_t> get_key(const event_stream_proto::Event& event) const;
-    TrackerIter get_tracker_by_key(const event_stream_proto::Event& event);
     void assign_latency_metrics(
         MetricSeries & metrics, const TimeCount& info, const LatencyHist& hist_info, std::string event = {});
 };
@@ -353,16 +352,21 @@ void Latency::record_latency(
     tracker.set_last_event(now, idx, txid);
 }
 
-void Latency::finalize_latency(const TrackerIter& tracker_iter)
+Latency::TrackerIter Latency::finalize_latency(TrackerIter tracker_iter)
 {
     aggregate_latency(tracker_iter->second);
-    trackers.erase(tracker_iter);
+    return trackers.erase(tracker_iter);
 }
 
 void Latency::end_transaction(Counter* counter, const event_stream_proto::Event& event)
 {
-    if (auto tracker_iter = get_tracker_by_key(event); tracker_iter != trackers.end())
-        finalize_latency(tracker_iter);
+    auto* transactions = proc_ifc.transactions();
+    for (auto tracker_iter = trackers.begin(); tracker_iter != trackers.end();) {
+        if (transactions->transaction_complete(tracker_iter->first))
+            tracker_iter = finalize_latency(tracker_iter);
+        else
+            ++tracker_iter;
+    }
 }
 
 void Latency::aggregate_latency(LatencyTracker& tracker)
@@ -415,14 +419,6 @@ std::optional<uint64_t> Latency::get_key(const event_stream_proto::Event& event)
     }
 
     return {};
-}
-
-Latency::TrackerIter Latency::get_tracker_by_key(const event_stream_proto::Event& event)
-{
-    if (auto txid = get_key(event); txid)
-        return trackers.find(*txid);
-
-    return trackers.end();
 }
 
 void Latency::assign_latency_metrics(MetricSeries& metrics,

@@ -53,3 +53,9 @@
 540 out_of_order_grandchild txid=52u
 550 end_transaction txid=52u
 560 end_transaction txid=50u
+570 start_transaction txid=60u
+580 parent_end_a txid=60u
+590 start_transaction txid=61u parent=60u
+600 end_transaction txid=60u
+610 parent_end_b txid=61u
+620 end_transaction txid=61u

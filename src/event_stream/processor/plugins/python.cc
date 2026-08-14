@@ -22,6 +22,11 @@
 
 namespace perf_streams::event_stream::processor {
 
+struct PythonPluginContext
+{
+    bool transactions_required{false};
+};
+
 /** The Python plugin class.
  *
  *  Most of the actual work by this plugin is handled by a single global/shared
@@ -56,6 +61,7 @@ public:
 
 private:
     unsigned python_plugin_idx;
+    PythonPluginContext context;
 };
 
 class PythonPluginHelper : Plugin
@@ -72,10 +78,23 @@ public:
     void py_on(const std::string& trigger, PyObject* func);
     bool py_has_definition(const std::string& name);
     const Parameter* py_get_parameter(const std::string& name);
-    void py_collect(PyObject* func) { collect_functions.push_back(func); }
-    void py_end_simulation(PyObject* func) { end_simulation_functions.push_back(func); }
-    void py_require_transactions() { transactions_required = true; }
-    bool py_transactions_required() const { return transactions_required; }
+    void py_collect(PyObject* func) { collect_functions.push_back({func, active_context}); }
+    void py_end_simulation(PyObject* func) { end_simulation_functions.push_back({func, active_context}); }
+    bool py_require_transactions()
+    {
+        if (!active_context)
+            return false;
+
+        active_context->transactions_required = true;
+        return true;
+    }
+    bool py_transactions_required() const { return active_context && active_context->transactions_required; }
+    PythonPluginContext* set_active_context(PythonPluginContext* context)
+    {
+        auto* previous_context = active_context;
+        active_context = context;
+        return previous_context;
+    }
     void enter_callback() { callback_depth++; }
     void exit_callback() { callback_depth--; }
     bool in_callback() const { return callback_depth != 0; }
@@ -85,23 +104,52 @@ public:
     PyObject* get_enum_type(const Definition& definition) { return enumerations.at(definition.enumeration_id()); }
 
 private:
+    struct PythonCallback
+    {
+        PyObject* function;
+        PythonPluginContext* context;
+    };
+
     static PyObject* create_enumeration(const std::string& name, const Enumeration& enum_def);
 
     std::map<int, PyObject*> enumerations;
-    std::list<PyObject*> collect_functions;
-    std::list<PyObject*> end_simulation_functions;
-    bool transactions_required{false};
+    std::list<PythonCallback> collect_functions;
+    std::list<PythonCallback> end_simulation_functions;
+    PythonPluginContext* active_context{nullptr};
     unsigned callback_depth{0};
 };
 
 class PythonCallbackScope
 {
 public:
-    explicit PythonCallbackScope(PythonPluginHelper& helper) : helper{helper} { helper.enter_callback(); }
-    ~PythonCallbackScope() { helper.exit_callback(); }
+    PythonCallbackScope(PythonPluginHelper& helper, PythonPluginContext& context)
+        : helper{helper}, previous_context{helper.set_active_context(&context)}
+    {
+        helper.enter_callback();
+    }
+    ~PythonCallbackScope()
+    {
+        helper.exit_callback();
+        helper.set_active_context(previous_context);
+    }
 
 private:
     PythonPluginHelper& helper;
+    PythonPluginContext* previous_context;
+};
+
+class PythonScriptScope
+{
+public:
+    PythonScriptScope(PythonPluginHelper& helper, PythonPluginContext& context)
+        : helper{helper}, previous_context{helper.set_active_context(&context)}
+    {
+    }
+    ~PythonScriptScope() { helper.set_active_context(previous_context); }
+
+private:
+    PythonPluginHelper& helper;
+    PythonPluginContext* previous_context;
 };
 
 static PythonPluginHelper* python_plugin_helper = nullptr;
@@ -110,7 +158,7 @@ static PyObject* enumeration_aliases = nullptr;
 
 std::set<Plugin::Phase> Python::phases() const
 {
-    if (python_plugin_helper && python_plugin_helper->py_transactions_required())
+    if (context.transactions_required)
         return {Phase::DEFINITIONS, Phase::COUNTERS, Phase::TRANSACTIONS};
 
     return {Phase::DEFINITIONS, Phase::COUNTERS};
@@ -289,7 +337,11 @@ static PyObject* evp_require_transactions(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    python_plugin_helper->py_require_transactions();
+    if (!python_plugin_helper->py_require_transactions()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "evp.require_transactions() must be called while the plugin script is being constructed");
+        return nullptr;
+    }
     Py_RETURN_NONE;
 }
 
@@ -590,8 +642,8 @@ PythonPluginHelper::PythonPluginHelper(ProcessorIfc& proc_ifc) : Plugin{proc_ifc
 
 PythonPluginHelper::~PythonPluginHelper()
 {
-    for (auto* func : collect_functions)
-        Py_DECREF(func);
+    for (const auto& callback : collect_functions)
+        Py_DECREF(callback.function);
 
     for (auto* enum_type : std::views::values(enumerations))
         Py_DECREF(enum_type);
@@ -610,7 +662,8 @@ PythonPluginHelper::~PythonPluginHelper()
  */
 void PythonPluginHelper::py_on(const std::string& trigger, PyObject* func)
 {
-    Action const action = [this, trigger, func](Counter*, const event_stream_proto::Event& proto_event) {
+    auto* context = active_context;
+    Action const action = [this, trigger, func, context](Counter*, const event_stream_proto::Event& proto_event) {
         // Create an Event object by calling its constructor.
         // I.e., this is the equivalent of "Event()" in Python.
         PyObject* event_args = Py_BuildValue("()");
@@ -624,7 +677,7 @@ void PythonPluginHelper::py_on(const std::string& trigger, PyObject* func)
 
         // Now we need to call the user's callback with the Event object.
         PyObject* arglist = Py_BuildValue("(O)", event);
-        PythonCallbackScope callback{*this};
+        PythonCallbackScope callback{*this, *context};
         PyObject* result = PyObject_CallObject(func, arglist);
         if (!result)
             py_err(fmt::format("trigger \"{}\" function failed", trigger));
@@ -707,12 +760,12 @@ void PythonPluginHelper::collect(MetricSeries& metrics, uint64_t trigger_time)
 {
     PyObject* args = Py_BuildValue("(K)", trigger_time);
 
-    for (auto func : collect_functions) {
-        Py_INCREF(func);
+    for (auto callback : collect_functions) {
+        Py_INCREF(callback.function);
         Py_INCREF(args);
 
-        PythonCallbackScope callback{*this};
-        PyObject* result = PyObject_CallObject(func, args);
+        PythonCallbackScope callback_scope{*this, *callback.context};
+        PyObject* result = PyObject_CallObject(callback.function, args);
 
         if (!result)
             py_err("call to collect function failed");
@@ -762,7 +815,7 @@ void PythonPluginHelper::collect(MetricSeries& metrics, uint64_t trigger_time)
 
         Py_XDECREF(result);
         Py_DECREF(args);
-        Py_DECREF(func);
+        Py_DECREF(callback.function);
     }
 
     Py_DECREF(args);
@@ -779,15 +832,15 @@ void PythonPluginHelper::end_simulation()
     PyObject* no_args = Py_BuildValue("()");
 
     while (!end_simulation_functions.empty()) {
-        auto* func = end_simulation_functions.front();
+        auto callback = end_simulation_functions.front();
         end_simulation_functions.pop_front();
 
-        PythonCallbackScope callback{*this};
-        PyObject* result = PyObject_CallObject(func, no_args);
+        PythonCallbackScope callback_scope{*this, *callback.context};
+        PyObject* result = PyObject_CallObject(callback.function, no_args);
         if (!result)
             py_err("end_simulation call failed");
         Py_XDECREF(result);
-        Py_DECREF(func);
+        Py_DECREF(callback.function);
     }
 
     Py_DECREF(no_args);
@@ -862,6 +915,7 @@ Python::Python(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}, python_pl
     //
     // See: https://medium.com/just-me-me-programming-life/python-c-and-symbols-4628fb71a257
     //
+    PythonScriptScope script_scope{*python_plugin_helper, context};
     PyObject* file = PyRun_FileEx(fp, pyfile.c_str(), Py_file_input, globals_lite, globals_lite, 1);
 
     if (!file)
