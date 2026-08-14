@@ -7,11 +7,15 @@ import json
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from enum import Enum
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import perf_streams.event_stream_pb2 as es_proto
 from perf_streams.extensions.transactions import Transactions
-from perf_streams.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
+
+if TYPE_CHECKING:
+    from src.protobuf_utils.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
+else:
+    from perf_streams.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
 
 protobuf_es_magic = 0x53454250  # 0x50(P) 0x42(B) 0x45(E) 0x53(S)
 protobuf_es_version = 4  # synchronize with event_stream_proto.h
@@ -202,7 +206,7 @@ class _EventStreamWriterBase(ProtobufStreamWriter):
             return False
         if enumeration_id is None:
             return not definition.HasField("enumeration_id")
-        return definition.HasField("enumeration_id") and definition.enumeration_id == enumeration_id
+        return cast("bool", definition.HasField("enumeration_id")) and definition.enumeration_id == enumeration_id
 
     @staticmethod
     def _encode_value(value: EventScalarValue) -> tuple[str, int | str]:
@@ -545,17 +549,17 @@ class EventStreamReader(ProtobufStreamReader):
         self.convert_enumerations = convert_enumerations
         self.definitions: dict[int, es_proto.Definition] = {}  # keyed by definition id
         self.definition_names: dict[int, str] = {}  # keyed by definition id
-        self.enumerations: dict[int, es_proto.Enumeration] = {}  # keyed by enumeration id
+        self.enumerations: dict[int, EnumerationValues] = {}  # keyed by enumeration id
         self.parameters: dict[str, es_proto.Parameter] = {}  # keyed by parameter name
 
-    def _add_definition(self, definition: es_proto.Definition):
+    def _add_definition(self, definition: es_proto.Definition) -> None:
         self.definitions[definition.id] = definition
         self.definition_names[definition.id] = definition.name
 
-    def _add_enumeration(self, enumeration: es_proto.Enumeration):
+    def _add_enumeration(self, enumeration: es_proto.Enumeration) -> None:
         self.enumerations[enumeration.id] = enumeration.values
 
-    def _add_parameter(self, parameter: es_proto.Parameter):
+    def _add_parameter(self, parameter: es_proto.Parameter) -> None:
         assert parameter.name not in self.parameters
         self.parameters[parameter.name] = parameter
 

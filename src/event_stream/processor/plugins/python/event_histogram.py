@@ -3,9 +3,15 @@
 
 """Histogram based upon event data as key."""
 
+from typing import TYPE_CHECKING
+
 import evp
 from perf_streams.event_stream import Event, EventScalarValue
-from perf_streams.processor.histogram import Histogram
+
+if TYPE_CHECKING:
+    from src.event_stream.processor.plugins.python.histogram import Histogram
+else:
+    from perf_streams.processor.histogram import Histogram
 
 
 class EventHistogramPerKey:

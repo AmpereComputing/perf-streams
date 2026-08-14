@@ -15,11 +15,8 @@ try:
 except ImportError:
     lzma_module = import_module("backports.lzma")
 
-from google.protobuf.message import Message
 from perf_streams.protobuf_utils import (
     SIZE_STRUCT,
-    Reader,
-    Writer,
     is32,
     read_header_from,
     write_delimited_to,
@@ -27,15 +24,29 @@ from perf_streams.protobuf_utils import (
 )
 
 
-class _ReadableBinaryFile(Reader, Protocol):
+class _Message(Protocol):
+    """Subset of the protobuf message API used by this module."""
+
+    def ParseFromString(self, serialized: bytes) -> int: ...  # noqa: N802
+
+
+class _ReadableBinaryFile(Protocol):
     """Binary reader with lifecycle operations used by ProtobufStreamReader."""
+
+    def read(self, size: int = -1) -> bytes:
+        """Read up to ``size`` bytes from the stream."""
+        ...
 
     def close(self) -> None:
         """Close the stream."""
 
 
-class _WritableBinaryFile(Writer, Protocol):
+class _WritableBinaryFile(Protocol):
     """Binary writer with lifecycle operations used by ProtobufStreamWriter."""
+
+    def write(self, data: bytes) -> int:
+        """Write bytes to the stream."""
+        ...
 
     def flush(self) -> None:
         """Flush buffered data."""
@@ -80,6 +91,7 @@ class ProtobufStreamReader:
         magic, version = read_header_from(self.file)
         if magic is None or version is None:
             self._check_decompressor_status(block=True)
+            raise ValueError("Protobuf stream header is incomplete")
         self.version = version
         assert expected_magic == magic, (
             f"ProtobufStreamReader expected magic value to be {expected_magic}, but found {magic} instead"
@@ -150,7 +162,7 @@ class ProtobufStreamReader:
         self.read_index += bytes_to_read
         return self.read_view[old_read_idx : self.read_index]
 
-    def read(self, item: Message) -> bool:
+    def read(self, item: _Message) -> bool:
         """Read item from stream."""
         # Get message size in bytes, encoded as bytes
         num_bytes = self._read_file(4)
@@ -202,7 +214,7 @@ class ProtobufStreamWriter:
         write_header_to(magic, version, self.file)
         self.file.flush()
 
-    def write(self, item: Message) -> None:
+    def write(self, item: _Message) -> None:
         """Write item to stream."""
         write_delimited_to(item, self.file)
 

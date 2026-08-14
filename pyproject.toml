@@ -154,7 +154,9 @@ docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.12"
+strict = true
 explicit_package_bases = true
+mypy_path = "install/lib/python:typing_stubs"
 files = [
     "src/event_stream/event_stream.py",
     "src/event_stream/extensions/transactions.py",
@@ -168,4 +170,3 @@ files = [
     "src/protobuf_utils/protobuf_utils.py",
 ]
 follow_imports = "skip"
-ignore_missing_imports = true

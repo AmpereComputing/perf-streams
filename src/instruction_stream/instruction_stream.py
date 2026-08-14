@@ -3,8 +3,14 @@
 
 """Event Stream reader/writer utilities."""
 
+from typing import TYPE_CHECKING
+
 import perf_streams.instruction_stream_pb2 as is_proto
-from perf_streams.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
+
+if TYPE_CHECKING:
+    from src.protobuf_utils.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
+else:
+    from perf_streams.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
 
 protobuf_is_magic = 0x53494250  # 0x50(P) 0x42(B) 0x49(I) 0x53(S)
 protobuf_is_version = 6  # synchronize with instruction_stream.cc

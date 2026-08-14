@@ -4,9 +4,7 @@
 """Protobuf read/write utilities."""
 
 import struct
-from typing import Protocol
-
-from google.protobuf.message import Message
+from typing import Protocol, cast
 
 INTEGER_SIZE = 4
 SIZE_STRUCT = struct.Struct("<L")
@@ -28,6 +26,19 @@ class Writer(Protocol):
         ...
 
 
+class Message(Protocol):
+    """Subset of the protobuf message API used by this module."""
+
+    def ByteSize(self) -> int:  # noqa: N802
+        """Return the serialized message size."""
+
+    def SerializeToString(self) -> bytes:  # noqa: N802
+        """Serialize the message to bytes."""
+
+    def ParseFromString(self, serialized: bytes) -> int:  # noqa: N802
+        """Parse a serialized message."""
+
+
 def is32(num_bytes: bytes) -> bool:
     """Check if bytes can be an integer."""
     return len(num_bytes) == INTEGER_SIZE
@@ -38,7 +49,7 @@ def read32(_input: Reader) -> int | None:
     num_bytes = _input.read(INTEGER_SIZE)
     if not is32(num_bytes):
         return None
-    return SIZE_STRUCT.unpack(num_bytes)[0]
+    return cast("int", SIZE_STRUCT.unpack(num_bytes)[0])
 
 
 def write32(value: int, output: Writer) -> None:
