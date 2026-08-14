@@ -80,6 +80,16 @@ bool TransactionTracker::transaction_complete(uint64_t txid) const
     return transaction_complete(txid, visited);
 }
 
+bool TransactionTracker::transaction_complete_after_end(uint64_t txid, const Event& event) const
+{
+    auto ending_txid = event_txid(event);
+    if (!ending_txid)
+        return false;
+
+    std::set<uint64_t> visited;
+    return transaction_complete(txid, *ending_txid, visited);
+}
+
 bool TransactionTracker::transaction_complete(uint64_t txid, std::set<uint64_t>& visited) const
 {
     if (!visited.insert(txid).second)
@@ -94,6 +104,26 @@ bool TransactionTracker::transaction_complete(uint64_t txid, std::set<uint64_t>&
 
     for (auto child_txid : transaction->second.children) {
         if (!transaction_complete(child_txid, visited))
+            return false;
+    }
+
+    return true;
+}
+
+bool TransactionTracker::transaction_complete(uint64_t txid, uint64_t ending_txid, std::set<uint64_t>& visited) const
+{
+    if (!visited.insert(txid).second)
+        return false;
+
+    if (txid != ending_txid && !ended_transactions.contains(txid))
+        return false;
+
+    auto transaction = transactions.find(txid);
+    if (transaction == transactions.end())
+        return true;
+
+    for (auto child_txid : transaction->second.children) {
+        if (!transaction_complete(child_txid, ending_txid, visited))
             return false;
     }
 

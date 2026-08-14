@@ -847,11 +847,11 @@ TEST_F(EVPTest, LatencyIncludeRelatedRetainsEndedParentTransaction)
         run(fmt::format("--es {} +latency --include-related -n parent_end parent_end_a parent_end_b +summarize",
                         build_es("latency_related.in")));
     const auto* expected = R"(parent_end.count           1
-parent_end.max_avg_latency 20
-parent_end.max_latency     20
-parent_end.min_latency     20
+parent_end.max_avg_latency 30
+parent_end.max_latency     30
+parent_end.min_latency     30
 parent_end.stdev           0
-parent_end.sum_latency     20
+parent_end.sum_latency     30
 )";
     EXPECT_EQ(output, expected);
 }

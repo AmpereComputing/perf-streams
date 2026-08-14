@@ -31,10 +31,12 @@ struct TransactionTracker
     bool is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const;
     bool is_related(uint64_t txid_a, uint64_t txid_b) const;
     bool transaction_complete(uint64_t txid) const;
+    bool transaction_complete_after_end(uint64_t txid, const Event& event) const;
 
 private:
     void end_transaction(uint64_t txid);
     bool transaction_complete(uint64_t txid, std::set<uint64_t>& visited) const;
+    bool transaction_complete(uint64_t txid, uint64_t ending_txid, std::set<uint64_t>& visited) const;
 
     std::optional<uint32_t> txid_definition_id;
     std::optional<uint32_t> parent_definition_id;
