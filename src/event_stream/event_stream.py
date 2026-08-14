@@ -7,15 +7,11 @@ import json
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import perf_streams.event_stream_pb2 as es_proto
 from perf_streams.extensions.transactions import Transactions
-
-if TYPE_CHECKING:
-    from src.protobuf_utils.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
-else:
-    from perf_streams.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
+from perf_streams.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
 
 protobuf_es_magic = 0x53454250  # 0x50(P) 0x42(B) 0x45(E) 0x53(S)
 protobuf_es_version = 4  # synchronize with event_stream_proto.h

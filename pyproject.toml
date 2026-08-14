@@ -170,3 +170,7 @@ files = [
     "src/protobuf_utils/protobuf_utils.py",
 ]
 follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "perf_streams.protobuf_stream"
+follow_imports = "normal"
