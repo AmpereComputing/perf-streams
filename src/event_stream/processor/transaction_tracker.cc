@@ -9,10 +9,6 @@
 
 namespace perf_streams::event_stream::processor {
 
-namespace {
-constexpr auto max_parent_depth = 1024;
-}
-
 void TransactionTracker::save_definition(const Definition& definition)
 {
     if (definition.kind() == event_stream_proto::EVENT) {
@@ -63,9 +59,13 @@ std::optional<uint64_t> TransactionTracker::transaction_parent(uint64_t txid) co
 bool TransactionTracker::is_ancestor(uint64_t ancestor_txid, uint64_t descendant_txid) const
 {
     auto parent = transaction_parent(descendant_txid);
-    for (auto depth = 0; parent && depth < max_parent_depth; ++depth, parent = transaction_parent(*parent)) {
+    auto remaining_transactions = transactions.size();
+    while (parent && remaining_transactions > 0) {
+        --remaining_transactions;
         if (*parent == ancestor_txid)
             return true;
+
+        parent = transaction_parent(*parent);
     }
 
     return false;

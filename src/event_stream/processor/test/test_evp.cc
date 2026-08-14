@@ -872,7 +872,7 @@ deep_ooo.sum_latency     30
     EXPECT_EQ(output, expected);
 }
 
-TEST_F(EVPTest, LatencyIncludeRelatedFinalizesDeepTransactionChain)
+TEST_F(EVPTest, LatencyIncludeRelatedMatchesDeepTransactionChain)
 {
     constexpr auto transaction_count = 4096u;
     auto input = test_file("deep_transaction_chain.in");
@@ -885,7 +885,7 @@ TEST_F(EVPTest, LatencyIncludeRelatedFinalizesDeepTransactionChain)
         for (auto txid = 2u; txid <= transaction_count; ++txid)
             output << fmt::format("{} start_transaction txid={}u parent={}u\n", txid * 10, txid, txid - 1);
 
-        output << fmt::format("{} deep_chain_b txid=1u\n", (transaction_count + 1) * 10);
+        output << fmt::format("{} deep_chain_b txid={}u\n", (transaction_count + 1) * 10, transaction_count);
         for (auto txid = 1u; txid <= transaction_count; ++txid)
             output << fmt::format("{} end_transaction txid={}u\n", (transaction_count + 1 + txid) * 10, txid);
     }
@@ -1292,6 +1292,16 @@ TEST_F(EVPTest, PythonTransactionQueriesRequireOptIn)
         fmt::format("--es {} +python {}", build_es("transaction_queries.in"), config("transactions_no_require.py")));
 
     EXPECT_THAT(output, ::testing::HasSubstr("evp transaction queries require evp.require_transactions()"));
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesRejectQueriesDuringScriptConstruction)
+{
+    auto output = run_expecting_error(fmt::format(
+        "--es {} +python {}", build_es("transaction_queries.in"), config("transactions_during_construction.py")));
+
+    EXPECT_THAT(output,
+                ::testing::HasSubstr(
+                    "evp transaction queries are only available after the plugin script has been constructed"));
 }
 
 TEST_F(EVPTest, PythonTransactionQueriesRequirePerPluginOptIn)

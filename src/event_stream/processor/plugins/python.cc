@@ -324,7 +324,8 @@ static TransactionTracker* py_transactions()
 
     auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
     if (!transactions)
-        PyErr_SetString(PyExc_RuntimeError, "evp transaction tracking is unavailable");
+        PyErr_SetString(PyExc_RuntimeError,
+                        "evp transaction queries are only available after the plugin script has been constructed");
 
     return transactions;
 }

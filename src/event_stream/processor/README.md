@@ -709,6 +709,12 @@ Python transaction queries require an explicit call to
 Without this opt-in, transaction query calls raise a `RuntimeError`. This keeps
 transaction tracking disabled for Python plugins that do not need it.
 
+`evp.transaction_parent()`, `evp.is_ancestor()`, and `evp.is_related()` are
+available from callbacks after the script has been constructed, not directly
+while it is being constructed. `evp.event_txid()` additionally requires the
+event passed to an active event callback. Calling a transaction query during
+script construction raises a `RuntimeError`.
+
 For example:
 
 ```python
