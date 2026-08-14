@@ -9,13 +9,14 @@ from dataclasses import dataclass
 from enum import Enum
 
 import perf_streams.event_stream_pb2 as es_proto
+from perf_streams.extensions.transactions import Transactions
 from perf_streams.protobuf_stream import ProtobufStreamReader, ProtobufStreamWriter
 
 protobuf_es_magic = 0x53454250  # 0x50(P) 0x42(B) 0x45(E) 0x53(S)
 protobuf_es_version = 4  # synchronize with event_stream_proto.h
 MIN_VERSION_WITH_PRE_EVENT_DEFINITIONS = 2
 
-type JsonScalar = None | bool | int | float | str
+type JsonScalar = bool | int | float | str | None
 type JsonValue = JsonScalar | list[JsonValue] | tuple[JsonValue, ...] | dict[str, JsonValue]
 type EventConstructor = Callable[[es_proto.Event, "EventStreamReader"], "Event"]
 
@@ -141,8 +142,8 @@ class Enumeration(dict[int, str]):
         self.enumeration_id = enumeration_id
 
 
-class EventStreamWriter(ProtobufStreamWriter):
-    """Protobuf-based EventStream writer."""
+class _EventStreamWriterBase(ProtobufStreamWriter):
+    """Core protobuf-based EventStream writer implementation."""
 
     def __init__(self, filename: str) -> None:
         """Create EventStream writer.
@@ -162,9 +163,6 @@ class EventStreamWriter(ProtobufStreamWriter):
         self._next_definition_id = 0
         self._next_event_id = 0
         self._next_enumeration_id = 0
-        self._next_txid = 0
-
-        self.open_transactions: dict[int, Transaction] = {}  # keyed by txid
 
     def _assert_preamble(self, operation: str) -> None:
         if self.simulation_started:
@@ -228,12 +226,6 @@ class EventStreamWriter(ProtobufStreamWriter):
             return ("uint_value", value)
 
         raise TypeError(f"Unsupported Value type: {type(value).__name__}")
-
-    def _create_transaction_definitions(self) -> None:
-        self._start_tx_event_id = self.define_event(Transaction.DEFAULT_START_NAME, "Beginning of a new transaction")
-        self._end_tx_event_id = self.define_event(Transaction.DEFAULT_END_NAME, "End of a transaction")
-        self._txid_data_id = self.define_data(Transaction.DEFAULT_TXID_NAME, "Transaction ID")
-        self._parent_tx_data_id = self.define_data(Transaction.DEFAULT_PARENT_NAME, "ID of parent transaction")
 
     def write(
         self, msg: es_proto.Definition | es_proto.Event | es_proto.Control | es_proto.Parameter | es_proto.Enumeration
@@ -422,11 +414,14 @@ class EventStreamWriter(ProtobufStreamWriter):
         self.write(parameter)
         self.parameters[name] = parameter
 
+    def _start_simulation_extensions(self) -> None:
+        """Allow writer extensions to define pre-simulation records."""
+
     def start_simulation(self) -> None:
         """Start simulation (events can occur after this)."""
         self._assert_preamble("start_simulation")
 
-        self._create_transaction_definitions()
+        self._start_simulation_extensions()
 
         control = es_proto.Control()
         control.type = es_proto.CtrlType.Value("START_SIMULATION")
@@ -438,7 +433,6 @@ class EventStreamWriter(ProtobufStreamWriter):
         event_type: EventType,
         time: int,
         values: EventValues | None = None,
-        transaction: Transaction | None = None,
     ) -> Event:
         """Post event.
 
@@ -446,7 +440,6 @@ class EventStreamWriter(ProtobufStreamWriter):
             event_type: event definition type
             time: time of event
             values: values associated with event (dict of data definition type with value)
-            transaction: associated transaction
         """
         self._assert_event_phase("post_event")
 
@@ -459,13 +452,6 @@ class EventStreamWriter(ProtobufStreamWriter):
         for value_type, raw_value in values.items():
             resolved_type = self._resolve_value_type(value_type)
             event_values[resolved_type.id] = (resolved_type, raw_value)
-
-        if transaction is not None:
-            if transaction.closed:
-                raise RuntimeError(f"Transaction {transaction.txid} has already ended")
-            if transaction.txid not in self.open_transactions:
-                raise RuntimeError(f"Transaction {transaction.txid} is not open")
-            event_values[self._txid_data_id.id] = (self._txid_data_id, transaction.txid)
 
         event_proto = es_proto.Event()
         event_proto.definition_id = resolved_event_type.id
@@ -482,80 +468,66 @@ class EventStreamWriter(ProtobufStreamWriter):
             event_data[value_type.name] = normalized_value
 
         self.write(event_proto)
-        event = Event(
+        return Event(
             definition_id=resolved_event_type.id,
             event_id=event_proto.id,
             time=event_proto.time,
             name=resolved_event_type.name,
             data=event_data,
         )
-        if transaction is not None:
-            transaction.add_event(event)
-        return event
 
-    def begin_transaction(
-        self,
-        time: int,
-        parent: Transaction | int | None = None,
-        values: EventValues | None = None,
-    ) -> Transaction:
-        """Begin transaction.
 
-        Args:
-            time: time transaction begins
-            parent: optional parent this transaction is associated with
-            values: additional values on begin event
-        """
-        self._assert_event_phase("begin_transaction")
+def _event_stream_writer_extension_error(*extensions: type) -> str | None:
+    """Return an extension validation error, or None when extensions are valid."""
+    seen: set[type] = set()
+    for extension in extensions:
+        if not isinstance(extension, type):
+            return f"EventStreamWriter extension must be a type, but was {type(extension).__name__}"
 
-        if values is not None and not isinstance(values, dict):
-            raise TypeError(f"values must be dict[ValueType, EventScalarValue], but was {type(values).__name__}")
+        requirements = getattr(extension, "requirements", ())
+        if not isinstance(requirements, tuple):
+            return f"{extension.__name__}.requirements must be a tuple[type, ...]"
 
-        txid = self._next_txid
-        self._next_txid += 1
+        for requirement in requirements:
+            if not isinstance(requirement, type):
+                return f"{extension.__name__}.requirements must contain only types"
+            if requirement not in seen:
+                return (
+                    f"{extension.__name__} requires {requirement.__name__}; "
+                    "list required extensions before dependent extensions"
+                )
 
-        transaction = Transaction(txid)
+        seen.add(extension)
+    return None
 
-        parent_txid = None
-        if parent is not None:
-            if isinstance(parent, Transaction):
-                parent_txid = parent.txid
-                parent.add_child(transaction)
-            else:
-                parent_txid = int(parent)
-                existing_parent = self.open_transactions.get(parent_txid)
-                if existing_parent is not None:
-                    existing_parent.add_child(transaction)
 
-        start_values = dict(values) if values else {}
-        start_values[self._txid_data_id] = txid
+def event_stream_writer_extensions_valid(*extensions: type) -> bool:
+    """Return whether writer extensions have their requirements in listed order."""
+    return _event_stream_writer_extension_error(*extensions) is None
 
-        if parent_txid is not None:
-            start_values[self._parent_tx_data_id] = parent_txid
 
-        self.open_transactions[txid] = transaction
-        self.post_event(self._start_tx_event_id, time=time, values=start_values, transaction=transaction)
-        return transaction
+def EventStreamWriterWith(*extensions: type) -> type[_EventStreamWriterBase]:  # noqa: N802
+    """Create an EventStreamWriter class with the requested extensions."""
+    error = _event_stream_writer_extension_error(*extensions)
+    if error is not None:
+        raise ValueError(error)
 
-    def end_transaction(self, transaction: Transaction, time: int, values: EventValues | None = None) -> Event:
-        """End transaction.
+    if extensions:
+        extension_names = "".join(extension.__name__ for extension in extensions)
+        name = f"EventStreamWriterWith{extension_names}"
+    else:
+        name = "EventStreamWriterWith"
 
-        Args:
-            transaction: transaction to end
-            time: time transaction ends
-            values: additional values on end event
-        """
-        self._assert_event_phase("end_transaction")
+    return type(
+        name,
+        (*reversed(extensions), _EventStreamWriterBase),
+        {"__module__": __name__, "__doc__": "Protobuf-based EventStream writer."},
+    )
 
-        if values is not None and not isinstance(values, dict):
-            raise TypeError(f"values must be dict[ValueType, EventScalarValue], but was {type(values).__name__}")
 
-        end_values = dict(values) if values else {}
-        end_values[self._txid_data_id] = transaction.txid
-        end_event = self.post_event(self._end_tx_event_id, time=time, values=end_values, transaction=transaction)
-        transaction.closed = True
-        del self.open_transactions[transaction.txid]
-        return end_event
+EventStreamWriter = EventStreamWriterWith(Transactions)
+EventStreamWriter.__name__ = "EventStreamWriter"
+EventStreamWriter.__qualname__ = "EventStreamWriter"
 
 
 class EventStreamReader(ProtobufStreamReader):

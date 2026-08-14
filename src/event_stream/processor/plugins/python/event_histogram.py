@@ -4,7 +4,6 @@
 """Histogram based upon event data as key."""
 
 import evp
-
 from perf_streams.event_stream import Event, EventScalarValue
 from perf_streams.processor.histogram import Histogram
 
@@ -53,7 +52,7 @@ class EventHistogramPerKey:
                 self._increment_histogram(occurences, self._total_histogram)
             self._histogram.clear()
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         metric_name: str,
         events: list[str] | str,

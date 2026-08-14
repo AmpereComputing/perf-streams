@@ -5,7 +5,6 @@
 
 #include "event_stream/event_definition.h"
 #include "event_stream/event_stream.h"
-#include "event_stream/transactional_event_stream.h"
 
 #include <cstdint>
 
@@ -13,12 +12,7 @@ namespace perf_streams::event_stream {
 
 uint64_t Transaction::current_id = 0;
 
-Transaction::Transaction(TransactionalEventStream& event_stream) : txid(++current_id), event_stream(&event_stream) {}
-
-DataType Transaction::txid_definition() const
-{
-    return event_stream->definition.txid;
-}
+Transaction::Transaction(DataType txid_definition) : txid(++current_id), txid_data_type(txid_definition) {}
 
 EventArg<uint64_t> to_event_arg(const Transaction& transaction)
 {

@@ -12,22 +12,20 @@
 
 namespace perf_streams::event_stream {
 
-class TransactionalEventStream;
-
 class Transaction
 {
 public:
-    explicit Transaction(TransactionalEventStream& event_stream);
+    explicit Transaction(DataType txid_definition);
     virtual ~Transaction() = default;
 
     auto id() const { return txid; }
 
 protected:
-    DataType txid_definition() const;
+    DataType txid_definition() const { return txid_data_type; }
 
     uint64_t txid;
     static uint64_t current_id;
-    TransactionalEventStream* event_stream{nullptr};
+    DataType txid_data_type;
 
     friend EventArg<uint64_t> to_event_arg(const Transaction& transaction);
 };

@@ -7,7 +7,11 @@ from enum import Enum
 from tempfile import TemporaryDirectory
 
 import perf_streams.event_stream_pb2 as es_proto
-from perf_streams.event_stream import EventStreamReader, EventStreamWriter, Transaction
+from perf_streams.event_stream import (
+    EventStreamReader,
+    EventStreamWriter,
+    Transaction,
+)
 
 testdir = os.path.dirname(__file__)
 

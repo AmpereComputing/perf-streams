@@ -1,6 +1,6 @@
 set(TESTS
     test_event.cc
-    test_transaction.cc
+    test_event_stream.cc
     test_writer.cc
     test_reader.cc)
 

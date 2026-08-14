@@ -3,11 +3,11 @@ set(HEADERS
     transaction.h
     event_definition.h
     event_stream.h
+    event_stream_with.h
     event_stream_sink.h
     event_stream_proto.h
     event_stream_reader.h
-    event_stream_recorder.h
-    transactional_event_stream.h)
+    event_stream_recorder.h)
 set(SOURCES
     transaction.cc
     event_definition.cc
@@ -15,8 +15,7 @@ set(SOURCES
     event_stream_proto.cc
     event_stream_sink.cc
     event_stream_reader.cc 
-    event_stream_recorder.cc
-    transactional_event_stream.cc)
+    event_stream_recorder.cc)
 
 add_library(event_stream ${SOURCES})
 target_link_libraries(event_stream PUBLIC protobuf_utils protobuf::libprotobuf Boost::boost fmt)
@@ -39,4 +38,5 @@ install(FILES event_stream.py DESTINATION ${INSTALL_PYTHON_PATH})
 add_subdirectory(processor)
 add_subdirectory(tools)
 add_subdirectory(test)
+add_subdirectory(extensions)
 add_subdirectory(testing)
