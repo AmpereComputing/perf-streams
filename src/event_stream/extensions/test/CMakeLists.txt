@@ -1,1 +1,3 @@
 target_sources(test_event_stream PRIVATE test_transactions.cc)
+
+add_python_test(event_stream_extensions_python_test DISCOVER ${CMAKE_CURRENT_SOURCE_DIR})
