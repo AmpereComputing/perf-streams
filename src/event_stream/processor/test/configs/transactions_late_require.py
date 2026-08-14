@@ -4,7 +4,7 @@
 import evp
 
 
-def probe(event):
+def probe(_event):
     evp.require_transactions()
 
 
