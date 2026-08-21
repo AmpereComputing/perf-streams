@@ -22,6 +22,7 @@ test = [
     "coverage"
 ]
 lint = [
+    "mypy",
     "ruff"
 ]
 all = [
@@ -150,3 +151,20 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+explicit_package_bases = true
+mypy_path = "install/lib/python:typing_stubs"
+files = ["src"]
+exclude = '(^|/)(test|tests)(/|$)'
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "perf_streams.protobuf_stream"
+follow_imports = "normal"
+
+[[tool.mypy.overrides]]
+module = "perf_streams.processor.python.histogram"
+follow_imports = "normal"

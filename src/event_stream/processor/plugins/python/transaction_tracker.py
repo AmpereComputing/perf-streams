@@ -86,7 +86,7 @@ class TransactionTracker:
         if key in tx_data:
             return tx_data[key]
         if search_parents and txid in self.parents:
-            return self.get_tx_data(self.parents[txid], key, True)  # noqa: FBT003
+            return self.get_tx_data(self.parents[txid], key, search_parents=True)
         return None
 
     def _remove_ghost_transactions(self, txid: int) -> None:

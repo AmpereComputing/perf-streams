@@ -6,6 +6,7 @@
 import enum
 import math
 from collections import Counter
+from typing import cast
 
 SPEC_PART_COUNT = 4
 
@@ -58,7 +59,12 @@ class Histogram:
         if len(parts) < SPEC_PART_COUNT:
             parts += [None] * (SPEC_PART_COUNT - len(parts))
 
-        return cls(*parts)
+        return cls(
+            cast("int | None", parts[0]),
+            cast("int | None", parts[1]),
+            cast("int | None", parts[2]),
+            cast("HistogramSequence | None", parts[3]),
+        )
 
     def _adjust(self, value: int) -> int:
         if self._granularity is not None:
@@ -76,7 +82,7 @@ class Histogram:
 
     def __call__(self, values: dict[int, int]) -> Counter[int]:
         """Bucket the provided histogram values."""
-        adjusted_values = Counter()
+        adjusted_values: Counter[int] = Counter()
         for bucket, count in values.items():
             adjusted = self._adjust(bucket)
             adjusted_values[adjusted] += count

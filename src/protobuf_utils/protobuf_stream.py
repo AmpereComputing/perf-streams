@@ -5,16 +5,54 @@
 
 import subprocess
 from contextlib import suppress
+from importlib import import_module
 from io import DEFAULT_BUFFER_SIZE, IOBase
 from os import cpu_count, path
+from typing import Protocol, cast
 
 try:
-    import lzma
+    lzma_module = import_module("lzma")
 except ImportError:
-    from backports import lzma
+    lzma_module = import_module("backports.lzma")
 
-from google.protobuf.message import Message
-from perf_streams.protobuf_utils import SIZE_STRUCT, is32, read_header_from, write_delimited_to, write_header_to
+from perf_streams.protobuf_utils import (
+    SIZE_STRUCT,
+    is32,
+    read_header_from,
+    write_delimited_to,
+    write_header_to,
+)
+
+
+class _Message(Protocol):
+    """Subset of the protobuf message API used by this module."""
+
+    def ParseFromString(self, serialized: bytes) -> int: ...  # noqa: N802
+
+
+class _ReadableBinaryFile(Protocol):
+    """Binary reader with lifecycle operations used by ProtobufStreamReader."""
+
+    def read(self, size: int = -1) -> bytes:
+        """Read up to ``size`` bytes from the stream."""
+        ...
+
+    def close(self) -> None:
+        """Close the stream."""
+
+
+class _WritableBinaryFile(Protocol):
+    """Binary writer with lifecycle operations used by ProtobufStreamWriter."""
+
+    def write(self, data: bytes) -> int:
+        """Write bytes to the stream."""
+        ...
+
+    def flush(self) -> None:
+        """Flush buffered data."""
+
+    def close(self) -> None:
+        """Close the stream."""
 
 
 class ProtobufStreamReader:
@@ -23,8 +61,9 @@ class ProtobufStreamReader:
     def __init__(self, filename: str | IOBase, expected_magic: int, max_version: int) -> None:
         """Initialize protobuf stream reader at file, checking magic/version."""
         self._file_process = None
+        self.file: _ReadableBinaryFile
         if isinstance(filename, IOBase):
-            self.file = filename
+            self.file = cast("_ReadableBinaryFile", filename)
             self.close_when_done = False
         elif filename.endswith(".xz"):
             if not path.exists(filename):
@@ -37,12 +76,13 @@ class ProtobufStreamReader:
                     stderr=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                 )
-                self.file = self._file_process.stdout
-                if self.file is None:
+                output = self._file_process.stdout
+                if output is None:
                     raise RuntimeError("xz decompressor did not provide stdout")
+                self.file = output
             except FileNotFoundError:
                 self._file_process = None
-                self.file = lzma.open(filename, "rb")
+                self.file = lzma_module.open(filename, "rb")
             self.close_when_done = True
         else:
             self.file = open(filename, "rb")  # noqa: SIM115
@@ -51,6 +91,7 @@ class ProtobufStreamReader:
         magic, version = read_header_from(self.file)
         if magic is None or version is None:
             self._check_decompressor_status(block=True)
+            raise ValueError("Protobuf stream header is incomplete")
         self.version = version
         assert expected_magic == magic, (
             f"ProtobufStreamReader expected magic value to be {expected_magic}, but found {magic} instead"
@@ -121,7 +162,7 @@ class ProtobufStreamReader:
         self.read_index += bytes_to_read
         return self.read_view[old_read_idx : self.read_index]
 
-    def read(self, item: Message) -> bool:
+    def read(self, item: _Message) -> bool:
         """Read item from stream."""
         # Get message size in bytes, encoded as bytes
         num_bytes = self._read_file(4)
@@ -163,8 +204,9 @@ class ProtobufStreamWriter:
 
     def __init__(self, filename: str, magic: int, version: int) -> None:
         """Initialize protobuf stream writer at file with magic/version."""
+        self.file: _WritableBinaryFile
         if filename.endswith(".xz"):
-            self.file = lzma.open(filename, "wb")
+            self.file = lzma_module.open(filename, "wb")
         else:
             self.file = open(filename, "wb")  # noqa: SIM115
 
@@ -172,7 +214,7 @@ class ProtobufStreamWriter:
         write_header_to(magic, version, self.file)
         self.file.flush()
 
-    def write(self, item: Message) -> None:
+    def write(self, item: _Message) -> None:
         """Write item to stream."""
         write_delimited_to(item, self.file)
 

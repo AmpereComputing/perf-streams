@@ -5,7 +5,7 @@
 
 import evp
 from perf_streams.event_stream import Event, EventScalarValue
-from perf_streams.processor.histogram import Histogram
+from perf_streams.processor.python.histogram import Histogram
 
 
 class EventHistogramPerKey:
@@ -94,6 +94,7 @@ class EventHistogramPerKey:
     def hash_key(self, data: dict[str, EventScalarValue]) -> int:
         """Build a stable hash key from the configured event data fields."""
         if self._key_names is None:
+            assert self._key_types is not None
             self._key_names = [name for name in data if any(key_type in name for key_type in self._key_types)]
         return hash(tuple(data[name] for name in self._key_names))
 

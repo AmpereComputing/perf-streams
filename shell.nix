@@ -13,6 +13,7 @@ pkgs.mkShell.override{stdenv = pkgs.gccStdenv; } {
     gdb
     gtest
     hatch
+    mypy
     ninja
     pkg-config
     protobuf
