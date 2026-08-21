@@ -157,18 +157,8 @@ python_version = "3.12"
 strict = true
 explicit_package_bases = true
 mypy_path = "install/lib/python:typing_stubs"
-files = [
-    "src/event_stream/event_stream.py",
-    "src/event_stream/extensions/transactions.py",
-    "src/event_stream/processor/plugins/python/__init__.py",
-    "src/event_stream/processor/plugins/python/event_histogram.py",
-    "src/event_stream/processor/plugins/python/histogram.py",
-    "src/event_stream/processor/plugins/python/occupancy.py",
-    "src/event_stream/processor/plugins/python/transaction_tracker.py",
-    "src/instruction_stream/instruction_stream.py",
-    "src/protobuf_utils/protobuf_stream.py",
-    "src/protobuf_utils/protobuf_utils.py",
-]
+files = ["src"]
+exclude = '(^|/)(test|tests)(/|$)'
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
