@@ -174,3 +174,7 @@ follow_imports = "skip"
 [[tool.mypy.overrides]]
 module = "perf_streams.protobuf_stream"
 follow_imports = "normal"
+
+[[tool.mypy.overrides]]
+module = "perf_streams.processor.python.histogram"
+follow_imports = "normal"
