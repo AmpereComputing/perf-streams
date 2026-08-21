@@ -15,6 +15,9 @@ lint`. Some checks are behind `make check-all`, which similarly can be fixed
 with `make lint-all`. Note, lint requires a clean tree, but you can use `.lint`
 and `.lint-all` to run within a dirty tree.
 
+Unless absolutely needed, avoid `*-all` targets for now. `clang-tidy` can take
+a while to run and sometimes has build/linking issues.
+
 ## Coding format
 
 * Prefer `c++23` for C++ and python3 with type annotations for python
