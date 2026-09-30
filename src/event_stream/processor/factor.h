@@ -8,8 +8,8 @@
 #include "event_stream/event_stream.pb.h"
 #include "event_stream/processor/bounds.h"
 
+#include <boost/container/small_vector.hpp>
 #include <boost/container_hash/hash.hpp>
-#include <boost/functional/hash.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -20,7 +20,7 @@
 
 namespace perf_streams::event_stream::processor {
 
-using FactorKey = std::vector<std::pair<int, uint64_t>>;
+using FactorKey = boost::container::small_vector<std::pair<int, uint64_t>, 2>;
 
 inline size_t hash_value(const FactorKey& key)
 {
@@ -34,7 +34,12 @@ inline size_t hash_value(const FactorKey& key)
     return seed;
 }
 
-using FactoredCountTable = std::unordered_map<FactorKey, int64_t, boost::hash<FactorKey>>;
+struct FactorKeyHash
+{
+    size_t operator()(const FactorKey& key) const { return hash_value(key); }
+};
+
+using FactoredCountTable = std::unordered_map<FactorKey, int64_t, FactorKeyHash>;
 
 struct FactorValueMatcher
 {
@@ -64,13 +69,16 @@ private:
     std::unordered_map<int, int> factor_position;
     std::unordered_map<int, FactorValueMatcher> factor_value_matchers;
     FactoredCountTable counts;
+    bool reserved_count_capacity{false};
 
     bool matches_value_filters(const event_stream_proto::Event& event) const;
     FactorKey to_factor_key(const event_stream_proto::Event& event);
+    void reserve_count_capacity();
 
     static FactorKey::value_type to_factor_value(const event_stream_proto::Value& value);
     static FactorKey::value_type::second_type adjust_value(const FactorKey::value_type& value,
                                                            const FactorBounds& bounds);
+    std::optional<size_t> factor_cardinality(int definition_id) const;
 };
 
 } // namespace perf_streams::event_stream::processor
