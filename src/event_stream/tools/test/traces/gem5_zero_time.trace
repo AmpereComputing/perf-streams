@@ -1,0 +1,4 @@
+O3PipeView:fetch:100:0x1000:0:1:zero time stage
+O3PipeView:decode:0
+O3PipeView:rename:120
+O3PipeView:retire:130

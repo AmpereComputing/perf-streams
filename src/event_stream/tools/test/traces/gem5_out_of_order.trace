@@ -1,0 +1,6 @@
+O3PipeView:fetch:100:0x1000:0:1:first
+O3PipeView:decode:110
+O3PipeView:retire:300
+O3PipeView:fetch:150:0x1004:0:2:second
+O3PipeView:decode:160
+O3PipeView:retire:200

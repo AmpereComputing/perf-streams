@@ -1,0 +1,16 @@
+This line should be ignored
+O3PipeView:fetch:100:0x1000:0:1:add x0, x0, x1
+O3PipeView:decode:110
+O3PipeView:rename:120
+also ignored
+O3PipeView:dispatch:130
+O3PipeView:issue:140
+O3PipeView:complete:150
+O3PipeView:retire:160:store:170
+O3PipeView:fetch:200:0x1004:1:2:ldr x2, [x3]
+O3PipeView:decode:210
+O3PipeView:rename:220
+O3PipeView:dispatch:230
+O3PipeView:issue:240
+O3PipeView:complete:250
+O3PipeView:retire:260

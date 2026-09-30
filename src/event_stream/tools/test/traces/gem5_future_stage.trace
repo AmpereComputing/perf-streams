@@ -1,0 +1,7 @@
+O3PipeView:fetch:300:0x2000:0:3:sub x4, x5, x6
+O3PipeView:decode:310
+O3PipeView:rename:320
+O3PipeView:dispatch:330:future:335
+O3PipeView:issue:340
+O3PipeView:complete:350
+O3PipeView:retire:360

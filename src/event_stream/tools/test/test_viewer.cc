@@ -3,6 +3,7 @@
 
 #include "testing/run_tool.h"
 
+#include <filesystem>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -12,9 +13,14 @@ struct EventStreamViewerTest : perf_streams::testing::CommandTest
     EventStreamViewerTest() : CommandTest(EVENT_STREAM_VIEWER_BIN, "streams") {}
 };
 
+static std::string shared_fixture(const std::string& name)
+{
+    return (std::filesystem::path(TEST_DIRECTORY).parent_path().parent_path() / "test" / "streams" / name).string();
+}
+
 TEST_F(EventStreamViewerTest, View)
 {
-    auto [output, status] = run_command(fixture("four_events_with_data.es"));
+    auto [output, status] = run_command(shared_fixture("four_events_with_data.es"));
     const auto* expected = R"(version=4
 definition name=foo description=event id=1
 definition name=bar description=data id=2
@@ -32,7 +38,7 @@ event time=600 name=boo baz=1
 
 TEST_F(EventStreamViewerTest, ViewAsHex)
 {
-    auto [output, status] = run_command("-h", fixture("four_events_with_data.es"));
+    auto [output, status] = run_command("-h", shared_fixture("four_events_with_data.es"));
     const auto* expected = R"(version=4
 definition name=foo description=event id=1
 definition name=bar description=data id=2
