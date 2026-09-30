@@ -4,8 +4,8 @@
 #include "event_stream/event_stream.pb.h"
 #include "event_stream/processor/metric_table.h"
 #include "event_stream/processor/processor_ifc.h"
+#include "event_stream/processor/transaction_tracker.h"
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <list>
@@ -22,17 +22,28 @@
 
 namespace perf_streams::event_stream::processor {
 
+struct PythonPluginContext
+{
+    bool transactions_required{false};
+};
+
 /** The Python plugin class.
  *
  *  Most of the actual work by this plugin is handled by a single global/shared
  *  instance of PythonPluginHelper, below.
  *
- *  There are four APIs exposed to a user's Python file today:
+ *  There are several APIs exposed to a user's Python file today:
  *
- *    1. on             : react to an event (pattern) by calling a function
- *    2. end_simulation : react to the end of simulation by calling a function
- *    3. collect        : schedule a function to call on collect time points
- *    4. has_definition : report whether an event is defined (by name)
+ *    1.  on                  : react to an event (pattern) by calling a function
+ *    2.  collect             : schedule a function to call on collect time points
+ *    3.  end_simulation      : react to the end of simulation by calling a function
+ *    4.  has_definition      : report whether a definition exists (by name)
+ *    5.  get_parameter       : get a parameter value (by name)
+ *    6.  require_transactions: opt in to transaction tracking
+ *    7.  event_txid          : get the transaction id from an event
+ *    8.  transaction_parent  : get the immediate parent transaction id
+ *    9.  is_ancestor         : query transaction ancestry
+ *    10. is_related          : query same or ancestor/descendant transactions
  */
 EVP_PLUGIN(Python, "python", "Custom python-based event processor plugin")
 {
@@ -46,13 +57,11 @@ public:
 
     void collect(MetricSeries & metrics, uint64_t trigger_time) override;
     void end_simulation() override;
-    std::set<Phase> phases() const override
-    {
-        return {Phase::DEFINITIONS, Phase::COUNTERS};
-    }
+    std::set<Phase> phases() const override;
 
 private:
     unsigned python_plugin_idx;
+    PythonPluginContext context;
 };
 
 class PythonPluginHelper : Plugin
@@ -69,24 +78,91 @@ public:
     void py_on(const std::string& trigger, PyObject* func);
     bool py_has_definition(const std::string& name);
     const Parameter* py_get_parameter(const std::string& name);
-    void py_collect(PyObject* func) { collect_functions.push_back(func); }
-    void py_end_simulation(PyObject* func) { end_simulation_functions.push_back(func); }
+    void py_collect(PyObject* func) { collect_functions.push_back({func, active_context}); }
+    void py_end_simulation(PyObject* func) { end_simulation_functions.push_back({func, active_context}); }
+    bool py_require_transactions()
+    {
+        if (!active_context)
+            return false;
+
+        active_context->transactions_required = true;
+        return true;
+    }
+    bool py_transactions_required() const { return active_context && active_context->transactions_required; }
+    PythonPluginContext* set_active_context(PythonPluginContext* context)
+    {
+        auto* previous_context = active_context;
+        active_context = context;
+        return previous_context;
+    }
+    void enter_callback() { callback_depth++; }
+    void exit_callback() { callback_depth--; }
+    bool in_callback() const { return callback_depth != 0; }
 
     ProcessorIfc* get_proc_ifc() { return &proc_ifc; }
 
     PyObject* get_enum_type(const Definition& definition) { return enumerations.at(definition.enumeration_id()); }
 
 private:
+    struct PythonCallback
+    {
+        PyObject* function;
+        PythonPluginContext* context;
+    };
+
     static PyObject* create_enumeration(const std::string& name, const Enumeration& enum_def);
 
     std::map<int, PyObject*> enumerations;
-    std::list<PyObject*> collect_functions;
-    std::list<PyObject*> end_simulation_functions;
+    std::list<PythonCallback> collect_functions;
+    std::list<PythonCallback> end_simulation_functions;
+    PythonPluginContext* active_context{nullptr};
+    unsigned callback_depth{0};
+};
+
+class PythonCallbackScope
+{
+public:
+    PythonCallbackScope(PythonPluginHelper& helper, PythonPluginContext& context)
+        : helper{helper}, previous_context{helper.set_active_context(&context)}
+    {
+        helper.enter_callback();
+    }
+    ~PythonCallbackScope()
+    {
+        helper.exit_callback();
+        helper.set_active_context(previous_context);
+    }
+
+private:
+    PythonPluginHelper& helper;
+    PythonPluginContext* previous_context;
+};
+
+class PythonScriptScope
+{
+public:
+    PythonScriptScope(PythonPluginHelper& helper, PythonPluginContext& context)
+        : helper{helper}, previous_context{helper.set_active_context(&context)}
+    {
+    }
+    ~PythonScriptScope() { helper.set_active_context(previous_context); }
+
+private:
+    PythonPluginHelper& helper;
+    PythonPluginContext* previous_context;
 };
 
 static PythonPluginHelper* python_plugin_helper = nullptr;
 static unsigned number_python_plugins = 0;
 static PyObject* enumeration_aliases = nullptr;
+
+std::set<Plugin::Phase> Python::phases() const
+{
+    if (context.transactions_required)
+        return {Phase::DEFINITIONS, Phase::COUNTERS, Phase::TRANSACTIONS};
+
+    return {Phase::DEFINITIONS, Phase::COUNTERS};
+}
 
 /** Utility function for reporting errors with Python APIs return NULL (Python's
  *  way of reporting an exception). It will print a stack backtrace and throw
@@ -229,6 +305,44 @@ static PyObject* evp_end_simulation(PyObject* self, PyObject* args)
     Py_INCREF(func);
     python_plugin_helper->py_end_simulation(func);
 
+    Py_RETURN_NONE;
+}
+
+static bool py_check_transactions_required()
+{
+    if (python_plugin_helper && python_plugin_helper->py_transactions_required())
+        return true;
+
+    PyErr_SetString(PyExc_RuntimeError, "evp transaction queries require evp.require_transactions()");
+    return false;
+}
+
+static TransactionTracker* py_transactions()
+{
+    if (!py_check_transactions_required())
+        return nullptr;
+
+    auto* transactions = python_plugin_helper->get_proc_ifc()->transactions();
+    if (!transactions)
+        PyErr_SetString(PyExc_RuntimeError,
+                        "evp transaction queries are only available after the plugin script has been constructed");
+
+    return transactions;
+}
+
+static PyObject* evp_require_transactions(PyObject* self, PyObject* args)
+{
+    if (python_plugin_helper->in_callback()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "evp.require_transactions() must be called while the plugin script is being constructed");
+        return nullptr;
+    }
+
+    if (!python_plugin_helper->py_require_transactions()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "evp.require_transactions() must be called while the plugin script is being constructed");
+        return nullptr;
+    }
     Py_RETURN_NONE;
 }
 
@@ -382,6 +496,78 @@ static PyTypeObject EventObjectType = {
 };
 // clang-format on
 
+static PyObject* evp_event_txid(PyObject* self, PyObject* args)
+{
+    PyObject* event;
+
+    if (!PyArg_ParseTuple(args, "O!:event_txid", &EventObjectType, &event))
+        return nullptr;
+    auto* transactions = py_transactions();
+    if (!transactions)
+        return nullptr;
+
+    const auto* proto_event = reinterpret_cast<EventObject*>(event)->_tmp_proto;
+    if (!proto_event) {
+        PyErr_SetString(PyExc_RuntimeError, "evp.event_txid() requires an event from an active callback");
+        return nullptr;
+    }
+
+    if (auto txid = transactions->event_txid(*proto_event); txid)
+        return PyLong_FromUnsignedLongLong(*txid);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* evp_transaction_parent(PyObject* self, PyObject* args)
+{
+    unsigned long long txid;
+
+    if (!PyArg_ParseTuple(args, "K:transaction_parent", &txid))
+        return nullptr;
+    auto* transactions = py_transactions();
+    if (!transactions)
+        return nullptr;
+
+    if (auto parent = transactions->transaction_parent(txid); parent)
+        return PyLong_FromUnsignedLongLong(*parent);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* evp_is_ancestor(PyObject* self, PyObject* args)
+{
+    unsigned long long ancestor_txid;
+    unsigned long long descendant_txid;
+
+    if (!PyArg_ParseTuple(args, "KK:is_ancestor", &ancestor_txid, &descendant_txid))
+        return nullptr;
+    auto* transactions = py_transactions();
+    if (!transactions)
+        return nullptr;
+
+    if (transactions->is_ancestor(ancestor_txid, descendant_txid))
+        Py_RETURN_TRUE;
+
+    Py_RETURN_FALSE;
+}
+
+static PyObject* evp_is_related(PyObject* self, PyObject* args)
+{
+    unsigned long long txid_a;
+    unsigned long long txid_b;
+
+    if (!PyArg_ParseTuple(args, "KK:is_related", &txid_a, &txid_b))
+        return nullptr;
+    auto* transactions = py_transactions();
+    if (!transactions)
+        return nullptr;
+
+    if (transactions->is_related(txid_a, txid_b))
+        Py_RETURN_TRUE;
+
+    Py_RETURN_FALSE;
+}
+
 //
 // Define the evp module and its methods.
 //
@@ -395,6 +581,11 @@ static PyMethodDef evp_methods[] = {
      METH_VARARGS,
      "Get a parameter value, None will be returned if it doesn't exist."},
     {"end_simulation", evp_end_simulation, METH_VARARGS, "Schedule a function to run at the end of simulation."},
+    {"require_transactions", evp_require_transactions, METH_NOARGS, "Enable processor transaction tracking."},
+    {"event_txid", evp_event_txid, METH_VARARGS, "Get an event transaction id, or None."},
+    {"transaction_parent", evp_transaction_parent, METH_VARARGS, "Get a transaction parent id, or None."},
+    {"is_ancestor", evp_is_ancestor, METH_VARARGS, "Query whether one transaction is an ancestor of another."},
+    {"is_related", evp_is_related, METH_VARARGS, "Query whether transactions are equal or ancestor-related."},
     {nullptr, nullptr, 0, nullptr}};
 
 static PyModuleDef evp_module = {
@@ -452,8 +643,8 @@ PythonPluginHelper::PythonPluginHelper(ProcessorIfc& proc_ifc) : Plugin{proc_ifc
 
 PythonPluginHelper::~PythonPluginHelper()
 {
-    for (auto* func : collect_functions)
-        Py_DECREF(func);
+    for (const auto& callback : collect_functions)
+        Py_DECREF(callback.function);
 
     for (auto* enum_type : std::views::values(enumerations))
         Py_DECREF(enum_type);
@@ -472,7 +663,8 @@ PythonPluginHelper::~PythonPluginHelper()
  */
 void PythonPluginHelper::py_on(const std::string& trigger, PyObject* func)
 {
-    Action const action = [this, trigger, func](Counter*, const event_stream_proto::Event& proto_event) {
+    auto* context = active_context;
+    Action const action = [this, trigger, func, context](Counter*, const event_stream_proto::Event& proto_event) {
         // Create an Event object by calling its constructor.
         // I.e., this is the equivalent of "Event()" in Python.
         PyObject* event_args = Py_BuildValue("()");
@@ -486,6 +678,7 @@ void PythonPluginHelper::py_on(const std::string& trigger, PyObject* func)
 
         // Now we need to call the user's callback with the Event object.
         PyObject* arglist = Py_BuildValue("(O)", event);
+        PythonCallbackScope callback{*this, *context};
         PyObject* result = PyObject_CallObject(func, arglist);
         if (!result)
             py_err(fmt::format("trigger \"{}\" function failed", trigger));
@@ -568,11 +761,12 @@ void PythonPluginHelper::collect(MetricSeries& metrics, uint64_t trigger_time)
 {
     PyObject* args = Py_BuildValue("(K)", trigger_time);
 
-    for (auto func : collect_functions) {
-        Py_INCREF(func);
+    for (auto callback : collect_functions) {
+        Py_INCREF(callback.function);
         Py_INCREF(args);
 
-        PyObject* result = PyObject_CallObject(func, args);
+        PythonCallbackScope callback_scope{*this, *callback.context};
+        PyObject* result = PyObject_CallObject(callback.function, args);
 
         if (!result)
             py_err("call to collect function failed");
@@ -622,7 +816,7 @@ void PythonPluginHelper::collect(MetricSeries& metrics, uint64_t trigger_time)
 
         Py_XDECREF(result);
         Py_DECREF(args);
-        Py_DECREF(func);
+        Py_DECREF(callback.function);
     }
 
     Py_DECREF(args);
@@ -639,14 +833,15 @@ void PythonPluginHelper::end_simulation()
     PyObject* no_args = Py_BuildValue("()");
 
     while (!end_simulation_functions.empty()) {
-        auto* func = end_simulation_functions.front();
+        auto callback = end_simulation_functions.front();
         end_simulation_functions.pop_front();
 
-        PyObject* result = PyObject_CallObject(func, no_args);
+        PythonCallbackScope callback_scope{*this, *callback.context};
+        PyObject* result = PyObject_CallObject(callback.function, no_args);
         if (!result)
             py_err("end_simulation call failed");
         Py_XDECREF(result);
-        Py_DECREF(func);
+        Py_DECREF(callback.function);
     }
 
     Py_DECREF(no_args);
@@ -721,6 +916,7 @@ Python::Python(ProcessorIfc& proc_ifc, Args& args) : Plugin{proc_ifc}, python_pl
     //
     // See: https://medium.com/just-me-me-programming-life/python-c-and-symbols-4628fb71a257
     //
+    PythonScriptScope script_scope{*python_plugin_helper, context};
     PyObject* file = PyRun_FileEx(fp, pyfile.c_str(), Py_file_input, globals_lite, globals_lite, 1);
 
     if (!file)

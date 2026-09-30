@@ -14,6 +14,8 @@ set(SOURCES
     processor_ifc.h
     processor.cc
     processor.h
+    transaction_tracker.cc
+    transaction_tracker.h
     strnatcmp.c
     strnatcmp.h
     utils.cc

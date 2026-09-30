@@ -29,6 +29,7 @@ using CounterSet = std::set<int>;
 using TimeAction = std::function<void(uint64_t current_time, uint64_t expiry)>;
 
 class Plugin;
+struct TransactionTracker;
 
 enum class CountAction {
     ADD,
@@ -57,6 +58,7 @@ struct ProcessorIfc
 
     virtual uint64_t get_current_time() const = 0;
     virtual uint64_t get_first_event_time() const = 0;
+    virtual TransactionTracker* transactions() = 0;
 
     virtual Counter& get_counter(int counter_id) = 0;
 

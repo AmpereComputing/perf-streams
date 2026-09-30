@@ -372,6 +372,7 @@ for the same data name are treated as alternative values.
       [-n|--name <name>]
       [-p|--prefix <prefix>]
       [-k|--key <key>...]
+      [--include-related]
       [--histogram]
       [--factored]
       <start event> <stop event> ...
@@ -383,6 +384,13 @@ the same transaction (i.e., they have the same `txid` data item) or same key
 value (if provided). Latencies are aggregated and reported as a pair of metrics,
 the "count" (how many times the pair was seen) and the "total" (the sum of all
 the time between events in picoseconds).
+
+With `--include-related`, `latency` also matches events whose transactions are
+ancestor/descendant related by standard `start_transaction` parent links. This
+includes parent-to-child, child-to-parent, and grandparent/grandchild matches,
+but not sibling transactions. `--include-related` cannot be combined with
+`-k|--key`. Related matching follows the same event sequence rules as the
+default latency mode.
 
 There some additional rules to how latencies are collected:
 
@@ -674,7 +682,38 @@ interaction with the event processor. `evp` contains the following functions:
   <td><code>get_parameter(name: str) -> Any</code></td>
   <td>Get a parameter value, <code>None</code> will be returned if it doesn't exist</td>
 </tr>
+<tr>
+  <td><code>require_transactions() -> None</code></td>
+  <td>Opt in to processor transaction tracking for this Python plugin</td>
+</tr>
+<tr>
+  <td><code>event_txid(event: Event) -> int | None</code></td>
+  <td>Get the transaction id from an event callback argument</td>
+</tr>
+<tr>
+  <td><code>transaction_parent(txid: int) -> int | None</code></td>
+  <td>Get the immediate parent transaction id, if one was recorded</td>
+</tr>
+<tr>
+  <td><code>is_ancestor(ancestor_txid: int, descendant_txid: int) -> bool</code></td>
+  <td>Query whether one transaction is an ancestor of another</td>
+</tr>
+<tr>
+  <td><code>is_related(txid_a: int, txid_b: int) -> bool</code></td>
+  <td>Query whether transactions are the same or ancestor/descendant related</td>
+</tr>
 </table>
+
+Python transaction queries require an explicit call to
+`evp.require_transactions()` while the plugin script is being constructed.
+Without this opt-in, transaction query calls raise a `RuntimeError`. This keeps
+transaction tracking disabled for Python plugins that do not need it.
+
+`evp.transaction_parent()`, `evp.is_ancestor()`, and `evp.is_related()` are
+available from callbacks after the script has been constructed, not directly
+while it is being constructed. `evp.event_txid()` additionally requires the
+event passed to an active event callback. Calling a transaction query during
+script construction raises a `RuntimeError`.
 
 For example:
 

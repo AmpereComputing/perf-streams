@@ -1,0 +1,99 @@
+0 start_transaction txid=1u
+10 parent_a txid=1u
+20 start_transaction txid=2u parent=1u
+30 child_b txid=2u
+40 child_a txid=2u
+50 parent_b txid=1u
+60 start_transaction txid=3u parent=2u
+70 grandparent_a txid=1u
+80 grandchild_b txid=3u
+90 sibling_a txid=2u
+100 start_transaction txid=4u parent=1u
+110 sibling_b txid=4u
+120 same_a txid=3u
+130 same_b txid=3u
+140 end_transaction txid=3u
+150 end_transaction txid=2u
+160 end_transaction txid=4u
+170 end_transaction txid=1u
+180 start_transaction txid=10u
+190 related_chain_a txid=10u
+200 start_transaction txid=11u parent=10u
+210 related_chain_b txid=11u
+220 start_transaction txid=12u parent=11u
+240 related_chain_c txid=12u
+250 end_transaction txid=12u
+260 end_transaction txid=11u
+270 end_transaction txid=10u
+280 start_transaction txid=20u
+290 stale_a txid=20u
+300 end_transaction txid=20u
+310 stale_b txid=20u
+320 start_transaction txid=30u
+330 related_repeat_a txid=30u
+340 related_repeat_a txid=30u
+350 start_transaction txid=31u parent=30u
+370 related_repeat_b txid=31u
+380 end_transaction txid=31u
+390 end_transaction txid=30u
+400 start_transaction txid=40u
+410 related_sibling_chain_a txid=40u
+420 start_transaction txid=41u parent=40u
+430 related_sibling_chain_b txid=41u
+440 start_transaction txid=42u parent=40u
+450 related_sibling_chain_c txid=42u
+460 end_transaction txid=41u
+470 end_transaction txid=42u
+480 end_transaction txid=40u
+490 start_transaction txid=50u
+500 start_transaction txid=51u parent=50u
+510 start_transaction txid=52u parent=51u
+520 out_of_order_grandparent txid=50u
+530 end_transaction txid=51u
+540 out_of_order_grandchild txid=52u
+550 end_transaction txid=52u
+560 end_transaction txid=50u
+570 start_transaction txid=60u
+580 parent_end_a txid=60u
+590 start_transaction txid=61u parent=60u
+600 end_transaction txid=60u
+610 parent_end_b txid=61u
+620 end_transaction txid=61u
+630 start_transaction txid=70u
+640 deep_out_of_order_a txid=70u
+650 start_transaction txid=71u parent=70u
+660 start_transaction txid=72u parent=71u
+670 deep_out_of_order_b txid=72u
+680 end_transaction txid=71u
+690 end_transaction txid=70u
+700 end_transaction txid=72u
+710 start_transaction txid=80u
+720 reparented_a txid=80u
+730 start_transaction txid=81u parent=80u
+740 start_transaction txid=82u
+750 start_transaction txid=81u parent=82u
+760 reparented_b txid=80u
+770 end_transaction txid=80u
+780 end_transaction txid=81u
+790 end_transaction txid=82u
+800 start_transaction txid=90u
+810 start_transaction txid=91u parent=90u
+820 reparented_root_a txid=90u
+830 start_transaction txid=91u
+840 reparented_root_b txid=91u
+850 end_transaction txid=91u
+860 end_transaction txid=90u
+870 start_transaction txid=100u
+880 restarted_parent_a txid=100u
+890 start_transaction txid=101u parent=100u
+900 end_transaction txid=100u
+910 start_transaction txid=100u
+920 restarted_parent_b txid=100u
+930 end_transaction txid=100u
+940 end_transaction txid=101u
+950 start_transaction txid=110u parent=111u
+960 start_transaction txid=111u parent=110u
+970 cycle_a txid=110u
+980 cycle_b txid=111u
+990 end_transaction txid=110u
+1000 end_transaction txid=111u

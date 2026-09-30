@@ -241,7 +241,9 @@ void Processor::start()
  */
 void Processor::process()
 {
-    if (phases.contains(Plugin::Phase::COUNTERS)) {
+    if (phases.contains(Plugin::Phase::COUNTERS) || phases.contains(Plugin::Phase::EVENTS)
+        || phases.contains(Plugin::Phase::TRANSACTIONS))
+    {
         do {
             ensure_event_record();
             current_time = record.event().time();
@@ -293,10 +295,15 @@ void Processor::skip(uint64_t max_time, CounterSet* including)
             for (auto it = counter_range.first; it != counter_range.second; ++it)
                 it->second->increment(event);
         }
+        if (transaction_tracker)
+            transaction_tracker->update(event);
 
         // reprocess record only if stopped skipping on time
-        if (!max_time || skipping)
+        if (!max_time || skipping) {
+            if (transaction_tracker)
+                transaction_tracker->end_transaction(event);
             record.Clear();
+        }
     } while (skipping && get_next_record());
 
     if (skipping)
@@ -478,6 +485,8 @@ void Processor::save_definition(const Definition& definition)
 {
     definitions[definition.id()] = definition;
     definition_index[definition.name()] = definition.id();
+    if (transaction_tracker)
+        transaction_tracker->save_definition(definition);
 }
 
 /** Save a Parameter away in our table.
@@ -533,6 +542,9 @@ void Processor::run_time_based_actions()
  */
 void Processor::handle_event(const Event& event)
 {
+    if (transaction_tracker)
+        transaction_tracker->update(event);
+
     if (const auto& e = events[event.definition_id()]; e.state == EventState::ENABLED) {
         for (auto* counter : e.counters)
             counter->increment(event);
@@ -541,6 +553,9 @@ void Processor::handle_event(const Event& event)
         for (auto* pp : event_plugins)
             pp->process_event(event);
     }
+
+    if (transaction_tracker)
+        transaction_tracker->end_transaction(event);
 }
 
 /** Collect metrics.
@@ -602,13 +617,19 @@ void Processor::enable_active_events()
         event_stream_proto::DefinitionResponse definition_response;
         event_stream_proto::Response response;
         definition_response.set_id(event_id);
-        definition_response.set_enable(event.state == EventState::ENABLED);
+        definition_response.set_enable(event.state == EventState::ENABLED
+                                       || should_enable_event_for_transactions(event_id));
         response.set_allocated_definition(&definition_response);
         response_stream->write(response);
         static_cast<void>(response.release_definition());
     }
 
     response_stream->flush();
+}
+
+bool Processor::should_enable_event_for_transactions(uint32_t event_id) const
+{
+    return transaction_tracker && transaction_tracker->should_enable_event(event_id);
 }
 
 /** Called by a plugin to count a particular (possibly factored)

@@ -783,6 +783,301 @@ a_b/latency:200     1
     EXPECT_EQ(output, expected);
 }
 
+TEST_F(EVPTest, LatencyIncludeRelatedParentChild)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n pc parent_a child_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(pc.count           1
+pc.max_avg_latency 20
+pc.max_latency     20
+pc.min_latency     20
+pc.stdev           0
+pc.sum_latency     20
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedChildParent)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n cp child_a parent_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(cp.count           1
+cp.max_avg_latency 10
+cp.max_latency     10
+cp.min_latency     10
+cp.stdev           0
+cp.sum_latency     10
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedGrandparentGrandchild)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n gg grandparent_a grandchild_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(gg.count           1
+gg.max_avg_latency 10
+gg.max_latency     10
+gg.min_latency     10
+gg.stdev           0
+gg.sum_latency     10
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedRetainsEndedIntermediateTransaction)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n ooo out_of_order_grandparent "
+                        "out_of_order_grandchild +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(ooo.count           1
+ooo.max_avg_latency 20
+ooo.max_latency     20
+ooo.min_latency     20
+ooo.stdev           0
+ooo.sum_latency     20
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedRetainsEndedParentTransaction)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n parent_end parent_end_a parent_end_b +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(parent_end.count           1
+parent_end.max_avg_latency 30
+parent_end.max_latency     30
+parent_end.min_latency     30
+parent_end.stdev           0
+parent_end.sum_latency     30
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedFinalizesAfterDeepOutOfOrderEnd)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n deep_ooo deep_out_of_order_a "
+                        "deep_out_of_order_b +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(deep_ooo.count           1
+deep_ooo.max_avg_latency 30
+deep_ooo.max_latency     30
+deep_ooo.min_latency     30
+deep_ooo.stdev           0
+deep_ooo.sum_latency     30
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedMatchesDeepTransactionChain)
+{
+    constexpr auto transaction_count = 4096u;
+    auto input = test_file("deep_transaction_chain.in");
+    auto event_stream = test_file("deep_transaction_chain.es");
+
+    {
+        std::ofstream output{input};
+        ASSERT_TRUE(output);
+        output << "0 start_transaction txid=1u\n10 deep_chain_a txid=1u\n";
+        for (auto txid = 2u; txid <= transaction_count; ++txid)
+            output << fmt::format("{} start_transaction txid={}u parent={}u\n", txid * 10, txid, txid - 1);
+
+        output << fmt::format("{} deep_chain_b txid={}u\n", (transaction_count + 1) * 10, transaction_count);
+        for (auto txid = 1u; txid <= transaction_count; ++txid)
+            output << fmt::format("{} end_transaction txid={}u\n", (transaction_count + 1 + txid) * 10, txid);
+    }
+
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n deep_chain deep_chain_a deep_chain_b "
+                        "+summarize",
+                        perf_streams::event_stream::testing::build_es(input, event_stream)));
+    std::remove(input.c_str());
+    std::remove(event_stream.c_str());
+
+    const auto* expected = R"(deep_chain.count           1
+deep_chain.max_avg_latency 40960
+deep_chain.max_latency     40960
+deep_chain.min_latency     40960
+deep_chain.stdev           0
+deep_chain.sum_latency     40960
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedFinalizesAfterReparenting)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n reparented reparented_a reparented_b "
+                        "+summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(reparented.count           1
+reparented.max_avg_latency 40
+reparented.max_latency     40
+reparented.min_latency     40
+reparented.stdev           0
+reparented.sum_latency     40
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedReparentingToRootExcludesPreviousParent)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n reparented_root reparented_root_a "
+                        "reparented_root_b +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(reparented_root.count       0
+reparented_root.stdev       0
+reparented_root.sum_latency 0
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedExcludesSiblings)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n sib sibling_a sibling_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(sib.count       0
+sib.stdev       0
+sib.sum_latency 0
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedPreservesSameTxid)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n same same_a same_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(same.count           1
+same.max_avg_latency 10
+same.max_latency     10
+same.min_latency     10
+same.stdev           0
+same.sum_latency     10
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedChain)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n rc related_chain_a related_chain_b "
+                        "related_chain_c +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(rc.count                           1
+rc.max_avg_latency                 20
+rc.max_latency                     20
+rc.min_latency                     20
+rc.related_chain_a.count           1
+rc.related_chain_a.max_avg_latency 20
+rc.related_chain_a.max_latency     20
+rc.related_chain_a.min_latency     20
+rc.related_chain_a.stdev           0
+rc.related_chain_a.sum_latency     20
+rc.related_chain_b.count           1
+rc.related_chain_b.max_avg_latency 30
+rc.related_chain_b.max_latency     30
+rc.related_chain_b.min_latency     30
+rc.related_chain_b.stdev           0
+rc.related_chain_b.sum_latency     30
+rc.stdev                           0
+rc.sum_latency                     20
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedChainExcludesSiblingLeg)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n rsc related_sibling_chain_a "
+                        "related_sibling_chain_b related_sibling_chain_c +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(rsc.count                                   1
+rsc.max_avg_latency                         20
+rsc.max_latency                             20
+rsc.min_latency                             20
+rsc.related_sibling_chain_a.count           1
+rsc.related_sibling_chain_a.max_avg_latency 20
+rsc.related_sibling_chain_a.max_latency     20
+rsc.related_sibling_chain_a.min_latency     20
+rsc.related_sibling_chain_a.stdev           0
+rsc.related_sibling_chain_a.sum_latency     20
+rsc.related_sibling_chain_b.count           0
+rsc.related_sibling_chain_b.stdev           0
+rsc.related_sibling_chain_b.sum_latency     0
+rsc.stdev                                   0
+rsc.sum_latency                             20
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedRetiresEndedTransactions)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n stale stale_a stale_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(stale.count       0
+stale.stdev       0
+stale.sum_latency 0
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedRepeatedStartReplacesPreviousStart)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n rel_repeat related_repeat_a related_repeat_b "
+                        "+summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(rel_repeat.count           1
+rel_repeat.max_avg_latency 30
+rel_repeat.max_latency     30
+rel_repeat.min_latency     30
+rel_repeat.stdev           0
+rel_repeat.sum_latency     30
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedFinalizesRestartedParentWithoutStaleChildren)
+{
+    auto output =
+        run(fmt::format("--es {} +latency --include-related -n restarted restarted_parent_a "
+                        "restarted_parent_b +summarize",
+                        build_es("latency_related.in")));
+    const auto* expected = R"(restarted.count           1
+restarted.max_avg_latency 40
+restarted.max_latency     40
+restarted.min_latency     40
+restarted.stdev           0
+restarted.sum_latency     40
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedFinalizesCompletedCycle)
+{
+    auto output = run(fmt::format("--es {} +latency --include-related -n cycle cycle_a cycle_b +summarize",
+                                  build_es("latency_related.in")));
+    const auto* expected = R"(cycle.count           1
+cycle.max_avg_latency 10
+cycle.max_latency     10
+cycle.min_latency     10
+cycle.stdev           0
+cycle.sum_latency     10
+)";
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, LatencyIncludeRelatedRejectsKeys)
+{
+    auto output = run_expecting_error(fmt::format(
+        "--es {} +latency --include-related -k txid parent_a child_b +summarize", build_es("latency_related.in")));
+    EXPECT_PLUGIN_ERROR(output, "latency", "--include-related cannot be combined with -k|--key\n");
+}
+
 TEST_F(EVPTest, CanMeasureOccupancy)
 {
     auto output = run(fmt::format("--es {} +occupancy alloc dealloc +summarize", build_es("occupancy.in")));
@@ -941,6 +1236,92 @@ NoneType None
 )";
 
     EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, PythonTransactionQueries)
+{
+    auto output = run(fmt::format("--es {} +python {}", build_es("transaction_queries.in"), config("transactions.py")));
+
+    const auto* expected = R"(probe txid=1 parent=None root=False related_2_3=False related_1=True unrelated_99=False
+probe txid=2 parent=1 root=True related_2_3=False related_1=True unrelated_99=False
+probe txid=3 parent=1 root=True related_2_3=False related_1=True unrelated_99=False
+probe txid=4 parent=2 root=True related_2_3=False related_1=True unrelated_99=False
+no_tx txid=None
+)";
+
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesEndParentsAfterCallback)
+{
+    auto output = run(fmt::format("--es {} +python {}", build_es("transaction_end.in"), config("transactions_end.py")));
+
+    const auto* expected = R"(end_transaction txid=2 parent=1
+probe_after_end parent_2=None related_1_2=False
+end_transaction txid=1 parent=None
+)";
+
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesRetainEndedIntermediateTransaction)
+{
+    auto output = run(fmt::format(
+        "--es {} +python {}", build_es("transaction_out_of_order_end.in"), config("transactions_out_of_order_end.py")));
+
+    EXPECT_EQ(output, "probe_after_middle_end parent_3=2 root_3=True related_1_3=True\n");
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesBoundCyclicParents)
+{
+    auto output =
+        run(fmt::format("--es {} +python {}", build_es("transaction_cycle.in"), config("transactions_cycle.py")));
+
+    const auto* expected = R"(probe_self parent_1=1 self_ancestor=True unrelated_99=False
+probe_parent_child parent_1=2 parent_2=1 root_2=True cycle_1_2=True related_1_2=True
+probe_cycle parent_3=4 parent_4=3 ancestor_4_3=True ancestor_3_4=True unrelated_99_4=False
+probe_after_cycle_end parent_3=None parent_4=None related_3_4=False
+)";
+
+    EXPECT_EQ(output, expected);
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesRequireOptIn)
+{
+    auto output = run_expecting_error(
+        fmt::format("--es {} +python {}", build_es("transaction_queries.in"), config("transactions_no_require.py")));
+
+    EXPECT_THAT(output, ::testing::HasSubstr("evp transaction queries require evp.require_transactions()"));
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesRejectQueriesDuringScriptConstruction)
+{
+    auto output = run_expecting_error(fmt::format(
+        "--es {} +python {}", build_es("transaction_queries.in"), config("transactions_during_construction.py")));
+
+    EXPECT_THAT(output,
+                ::testing::HasSubstr(
+                    "evp transaction queries are only available after the plugin script has been constructed"));
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesRequirePerPluginOptIn)
+{
+    auto output = run_expecting_error(fmt::format("--es {} +python {} +python {}",
+                                                  build_es("transaction_queries.in"),
+                                                  config("transactions.py"),
+                                                  config("transactions_no_require.py")));
+
+    EXPECT_THAT(output, ::testing::HasSubstr("evp transaction queries require evp.require_transactions()"));
+}
+
+TEST_F(EVPTest, PythonTransactionQueriesRejectLateOptIn)
+{
+    auto output = run_expecting_error(
+        fmt::format("--es {} +python {}", build_es("transaction_queries.in"), config("transactions_late_require.py")));
+
+    EXPECT_THAT(
+        output,
+        ::testing::HasSubstr("evp.require_transactions() must be called while the plugin script is being constructed"));
 }
 
 TEST_F(EVPTest, TestVariables)
