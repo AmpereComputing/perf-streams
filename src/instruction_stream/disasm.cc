@@ -3,7 +3,7 @@
 
 #include "disasm.h"
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>

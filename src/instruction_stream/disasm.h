@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include <capstone.h>
+#include <capstone/capstone.h>
+#include <capstone/platform.h>
 #include <cstdint>
-#include <platform.h>
 #include <string>
 
 namespace perf_streams::disasm {

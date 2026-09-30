@@ -10,6 +10,7 @@ GCOVR:=gcovr
 
 BUILD_ARGS:=-j 0
 BUILD_DIRECTORY_PREFIX=build-
+VCPKG_BUILD_DIRECTORY_PREFIX=build-vcpkg-
 DEFAULT_BUILD_TYPE=release
 BUILD_TYPE:=$(DEFAULT_BUILD_TYPE)
 BUILD_DIRECTORY?=$(BUILD_DIRECTORY_PREFIX)$(BUILD_TYPE)
@@ -18,6 +19,14 @@ PROJECT_DIR=$(realpath $(dir $(realpath $(lastword $(MAKEFILE_LIST)))))
 export CMAKE_GENERATOR=Ninja
 CMAKE_ARGS:=
 CMAKE_CONFIGURE_ARGS=-D CMAKE_BUILD_TYPE=$(BUILD_TYPE) $(CMAKE_ARGS)
+VCPKG_ROOT?=$(VCPKG_INSTALLATION_ROOT)
+ifeq ($(VCPKG_ROOT),)
+VCPKG_ROOT:=$(PROJECT_DIR)/.cache/vcpkg
+endif
+VCPKG:=$(VCPKG_ROOT)/vcpkg
+VCPKG_TOOLCHAIN_FILE:=$(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake
+VCPKG_TRIPLET?=x64-linux
+VCPKG_JOBS?=1
 
 # Testing options
 CTEST_BIN:=ctest
@@ -52,6 +61,24 @@ build-%: .force
 
 .PHONY: build
 build: build-$(DEFAULT_BUILD_TYPE)
+
+.PHONY: vcpkg-build
+vcpkg-build: vcpkg-build-$(DEFAULT_BUILD_TYPE)
+
+.PHONY: vcpkg-setup
+vcpkg-setup:
+	@if [ ! -d "$(VCPKG_ROOT)/.git" ]; then \
+		git clone --depth 1 https://github.com/microsoft/vcpkg.git "$(VCPKG_ROOT)"; \
+	fi
+	@if [ ! -x "$(VCPKG)" ]; then \
+		"$(VCPKG_ROOT)/bootstrap-vcpkg.sh" -disableMetrics; \
+	fi
+
+vcpkg-build-%: .force vcpkg-setup
+	VCPKG_MAX_CONCURRENCY=$(VCPKG_JOBS) $(VCPKG) install --triplet $(VCPKG_TRIPLET)
+	$(MAKE) build-$* BUILD_DIRECTORY=$(VCPKG_BUILD_DIRECTORY_PREFIX)$* \
+		BUILD_ARGS="-j $(VCPKG_JOBS)" \
+		CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN_FILE)"
 
 .PHONY: debug
 debug: build-debug

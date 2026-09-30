@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python lint dependencies
+        run: python -m pip install --group lint
+      - name: Check C++ formatting
+        run: make clang-format-check
+      - name: Check Python formatting
+        run: make python-format-check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-26.04
+    needs: format
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python lint dependencies
+        run: python -m pip install --group lint
+      - name: Check Python lint
+        run: make python-lint-check
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-26.04
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Restore vcpkg cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/vcpkg/archives
+            vcpkg_installed
+          key: "vcpkg-${{ runner.os }}-x64-linux-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}"
+      - name: Install native dependencies
+        run: $VCPKG_INSTALLATION_ROOT/vcpkg install --triplet x64-linux
+      - name: Install project dependencies
+        run: >-
+          CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          python -m pip install --group lint .
+      - name: Run unit tests
+        run: >-
+          make test
+          CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+      - name: Check Python types
+        run: make mypy-check
+
+  python-package:
+    name: Python Package
+    runs-on: ubuntu-26.04
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python build dependencies
+        run: python -m pip install --group build
+      - name: Restore vcpkg cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/vcpkg/archives
+            vcpkg_installed
+          key: "vcpkg-${{ runner.os }}-x64-linux-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}"
+      - name: Install native dependencies
+        run: $VCPKG_INSTALLATION_ROOT/vcpkg install --triplet x64-linux
+      - name: Build Python package
+        run: >-
+          SKBUILD_CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake;-DVCPKG_MANIFEST_DIR=$GITHUB_WORKSPACE;-DVCPKG_INSTALLED_DIR=$GITHUB_WORKSPACE/vcpkg_installed"
+          make package

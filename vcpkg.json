@@ -1,7 +1,21 @@
 {
   "dependencies": [
-    "boost",
-    "capstone",
+    "boost-filesystem",
+    {
+      "name": "boost-iostreams",
+      "features": [
+        "bzip2",
+        "lzma",
+        "zlib"
+      ]
+    },
+    "boost-process",
+    "boost-program-options",
+    "boost-regex",
+    {
+      "name": "capstone",
+      "features": ["arm64"]
+    },
     "fmt",
     "gtest",
     "protobuf",
