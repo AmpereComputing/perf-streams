@@ -37,6 +37,7 @@ build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
 cmake.version = ">=3.24"
+sdist.include = ["vcpkg.json", "vcpkg-configuration.json"]
 sdist.exclude = ["*.in", "*.xz", "*.es", "*.is", "*.ms", "*.bs"]
 
 [tool.hatch.envs.hatch-test.scripts]
